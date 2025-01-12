@@ -1,29 +1,38 @@
+// src/router.js
 import Vue from 'vue'
-import VueRouter from 'vue-router'
-import HomeView from '../views/HomeView.vue'
+import Router from 'vue-router'
 
-Vue.use(VueRouter)
+Vue.use(Router)
 
 const routes = [
   {
     path: '/',
-    name: 'home',
-    component: HomeView
+    name: 'Home',
+    component: {
+      template: '<div>主应用首页</div>'
+    }
   },
+  // 当 URL 匹配 /posts 时，会激活子应用
   {
-    path: '/about',
-    name: 'about',
-    // route level code-splitting
-    // this generates a separate chunk (about.[hash].js) for this route
-    // which is lazy-loaded when the route is visited.
-    component: () => import(/* webpackChunkName: "about" */ '../views/AboutView.vue')
-  }
+    path: '/posts',
+    name: 'Posts',
+    component: {
+      template: '<div>帖子子应用路由激活时加载</div>'
+    }
+  },
+  // 当 URL 匹配 /posts 时，会激活子应用
+  {
+    path: '/assistant',
+    name: 'Assistant',
+    component: {
+      template: '<div>智能助理子应用路由激活时加载</div>'
+    }
+  },
+
 ]
 
-const router = new VueRouter({
+export default new Router({
   mode: 'history',
-  base: process.env.BASE_URL,
+  base: '/',
   routes
 })
-
-export default router
