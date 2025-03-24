@@ -45,7 +45,10 @@ export default {
     return {
       isLoggedIn: false,  // 初始化为未登录状态
       isCollapsed: false,  // 侧边栏是否折叠
-      microAppPrefixes: ['/venue', '/posts', '/assistant', '/user', '/equipment', '/events', '/finance', '/hr']
+      microAppPrefixes: ['/venue', '/posts', '/assistant', '/user', '/equipment', '/events', '/finance', '/hr'],
+      needsRefresh: false, // 用于标记是否需要刷新
+      isFirstMount: true,  // 用于检测应用首次挂载
+      isJustLoggedIn: false // 用于检测刚刚登录
     };
   },
   computed: {
@@ -61,8 +64,20 @@ export default {
     // 监听路由变化
     '$route': {
       immediate: true,
-      handler(to) {
+      handler(to, from) {
+        const wasLoggedIn = this.isLoggedIn;
         this.checkLoginStatus();
+
+        // 检测来自登录页面的跳转
+        if (from && from.name === 'Login' && this.isLoggedIn && !wasLoggedIn) {
+          console.log('检测到登录完成，标记需要刷新');
+          this.isJustLoggedIn = true;
+          // 添加到浏览器历史状态，用于检测是否是刷新后的状态
+          history.replaceState({ justLoggedIn: true }, document.title);
+
+          // 延迟50ms刷新页面，确保状态已保存
+          setTimeout(() => this.refreshBrowser(), 50);
+        }
 
         // 更新页面标题
         if (to.meta && to.meta.title) {
@@ -86,21 +101,63 @@ export default {
           });
         }
       }
+    },
+
+    // 监听登录状态变化
+    isLoggedIn(newVal, oldVal) {
+      if (newVal && !oldVal) {
+        // 刚刚登录，设置需要刷新
+        this.needsRefresh = true;
+        console.log('登录状态已变更，标记需要刷新');
+      }
     }
   },
   methods: {
     checkLoginStatus() {
+      const wasLoggedIn = this.isLoggedIn;
       this.isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+
+      // 如果刚刚登录成功，考虑刷新
+      if (this.isLoggedIn && !wasLoggedIn && !this.isFirstMount) {
+        this.needsRefresh = true;
+        console.log('检测到登录状态改变，标记需要刷新');
+      }
     },
+
+    refreshBrowser() {
+      // 检查是否是刷新后的状态
+      if (history.state && history.state.justLoggedIn) {
+        console.log('刷新后的状态，不再重复刷新');
+        this.isJustLoggedIn = false;
+        return;
+      }
+
+      console.log('执行页面刷新...');
+      // 跳转到首页或仪表盘
+      const targetRoute = '/dashboard';
+
+      // 先导航到目标页面，然后刷新
+      this.$router.push(targetRoute).then(() => {
+        // 使用location.reload()进行页面刷新
+        window.location.reload();
+      }).catch(err => {
+        // 如果导航失败也直接刷新
+        console.error('导航失败，直接刷新:', err);
+        window.location.reload();
+      });
+    },
+
     handleSidebarCollapse(collapsed) {
       this.isCollapsed = collapsed;
     },
+
     initMicroAppPrefixes() {
       // 从微应用配置中提取路由前缀
       if (microApps && microApps.length) {
         this.microAppPrefixes = microApps.map(app => app.activeRule);
       }
     },
+
     addGlobalStyles() {
       // 在head中添加全局样式，隐藏基座滚动条
       if (!document.getElementById('hide-scrollbar-style')) {
@@ -172,28 +229,177 @@ export default {
         `;
         document.head.appendChild(style);
       }
+    },
+
+    ensureLayoutStability() {
+      // 手动强制重新计算布局
+      setTimeout(() => {
+        // 触发窗口resize事件，促使组件重新计算尺寸
+        window.dispatchEvent(new Event('resize'));
+
+        const microContainer = document.getElementById('micro-container');
+        if (microContainer) {
+          // 确保容器有正确的尺寸
+          microContainer.style.height = 'calc(100vh - 100px)';
+          microContainer.style.width = '100%';
+        }
+      }, 100);
+    },
+
+    // 监听登录完成的事件
+    onLoginCompleted() {
+      // 设置需要刷新的标志
+      this.needsRefresh = true;
+      console.log('登录完成事件触发，准备刷新页面');
+
+      // 延迟执行刷新，确保状态已保存
+      setTimeout(() => this.refreshBrowser(), 100);
+    },
+
+    // 添加全局事件监听
+    setupGlobalEventListeners() {
+      // 自定义登录完成事件
+      window.addEventListener('login-completed', this.onLoginCompleted);
+
+      // 监听本地存储变化
+      window.addEventListener('storage', event => {
+        if (event.key === 'isLoggedIn' && event.newValue === 'true' && event.oldValue !== 'true') {
+          console.log('本地存储检测到登录状态改变，准备刷新');
+          this.needsRefresh = true;
+          this.refreshBrowser();
+        }
+      });
     }
   },
   created() {
     this.initMicroAppPrefixes();
+
+    // 检查是否是从登录页刷新后的状态
+    if (history.state && history.state.justLoggedIn) {
+      console.log('检测到是刷新后的状态，标记已完成刷新');
+      this.isJustLoggedIn = false;
+    }
   },
   mounted() {
     this.checkLoginStatus();
     this.addGlobalStyles();
+    this.ensureLayoutStability();
+    this.setupGlobalEventListeners();
 
-    // 监听登录状态变化
-    window.addEventListener('storage', this.checkLoginStatus);
+    // 标记第一次挂载已完成
+    this.isFirstMount = false;
+
+    // 检查URL参数是否含有需要刷新的标记(例如: ?refresh=true)
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('refresh') === 'true') {
+      console.log('检测到URL参数请求刷新');
+      // 清除URL参数
+      const newUrl = window.location.pathname + window.location.hash;
+      history.replaceState(null, '', newUrl);
+    }
+    // 检查是否需要显示加载遮罩
+    if (localStorage.getItem('showLoadingMask') === 'true') {
+      // 清除标记
+      localStorage.removeItem('showLoadingMask');
+
+      // 检查是否已存在遮罩
+      let mask = document.getElementById('global-loading-mask');
+
+      // 如果没有遮罩但需要显示，创建一个
+      if (!mask) {
+        mask = document.createElement('div');
+        mask.id = 'global-loading-mask';
+        mask.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: #4285f4; /* 蓝色背景 */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+      flex-direction: column;
+      transition: opacity 0.5s;
+    `;
+
+        mask.innerHTML = `
+      <style>
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        .global-loading-spinner {
+          width: 50px;
+          height: 50px;
+          border: 5px solid rgba(255, 255, 255, 0.3);
+          border-top: 5px solid #ffffff;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+          margin-top: 30px;
+        }
+        .global-system-title {
+          font-size: 24px;
+          color: #ffffff;
+          font-family: Arial, sans-serif;
+          font-weight: bold;
+          margin-top: 15px;
+        }
+        .global-loading-text {
+          font-size: 16px;
+          color: rgba(255, 255, 255, 0.8);
+          font-family: Arial, sans-serif;
+          margin-top: 5px;
+        }
+        .logo-container {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .global-icon {
+          font-size: 40px;
+          color: #ffffff;
+        }
+      </style>
+      <div class="logo-container">
+        <i class="el-icon-basketball global-icon"></i>
+      </div>
+      <div class="global-system-title">体育管理系统</div>
+      <div class="global-loading-text">加载中，请稍候...</div>
+      <div class="global-loading-spinner"></div>
+    `;
+
+        document.body.appendChild(mask);
+      }
+
+      // 页面加载完成后延迟移除遮罩
+      window.addEventListener('load', () => {
+        setTimeout(() => {
+          if (mask) {
+            // 淡出效果
+            mask.style.opacity = '0';
+            setTimeout(() => {
+              if (mask && mask.parentNode) {
+                mask.parentNode.removeChild(mask);
+              }
+            }, 500); // 等待淡出动画完成
+          }
+        }, 3000); // 等待内容渲染完成
+      });
+    }
   },
   beforeDestroy() {
     // 清理事件监听
     window.removeEventListener('storage', this.checkLoginStatus);
+    window.removeEventListener('login-completed', this.onLoginCompleted);
 
     // 移除全局样式
     const style = document.getElementById('hide-scrollbar-style');
     if (style) {
       document.head.removeChild(style);
     }
-  }
+  },
 };
 </script>
 
@@ -278,5 +484,4 @@ export default {
 .micro-container::-webkit-scrollbar-track {
   background: rgba(0, 0, 0, 0.05);
 }
-
 </style>

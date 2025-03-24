@@ -257,7 +257,7 @@ export default {
 .avatar {
   width: 100px;
   height: 100px;
-  border-radius: 10px;
+  border-radius: 50%;
   display: block;
   object-fit: cover;
 }

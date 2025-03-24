@@ -109,7 +109,8 @@ export default {
       observer: null,
       visibleItems: new Set(), // 追踪当前可见的元素
       lastScrollTop: 0, // 跟踪上次滚动位置
-      scrollDirection: 'down' // 默认滚动方向
+      scrollDirection: 'down' ,// 默认滚动方向
+      initialRender: true // 标记是否是初始渲染
     }
   },
   mounted() {
@@ -119,13 +120,16 @@ export default {
     // 添加滚动方向检测
     this.setupScrollDirectionDetection();
 
-    // 为可见的元素添加初始动画
-    this.animateInitialItems();
+    // 显示所有元素，而不仅仅是视口内的元素
+    this.showAllItemsInitially();
 
-    // 延迟后开始观察所有元素
+    // 延迟后开始观察所有元素以支持滚动动画
     setTimeout(() => {
+      this.initialRender = false; // 标记初始渲染结束
+      // 取消所有元素的显示状态，以便滚动时能重新触发动画
+      this.resetItemsForScrollAnimation();
       this.observeAllItems();
-    }, 100);
+    }, 2000); // 给足够时间让所有元素完成初始显示动画
   },
   methods: {
     setupScrollDirectionDetection() {
@@ -147,7 +151,6 @@ export default {
           this.$el.classList.remove('scrolling-down');
           this.$el.classList.add('scrolling-up');
         }
-
         this.lastScrollTop = st;
       });
     },
@@ -156,30 +159,33 @@ export default {
       // 创建 Intersection Observer
       this.observer = new IntersectionObserver(
           (entries) => {
-            entries.forEach(entry => {
-              // 当元素进入视口
-              if (entry.isIntersecting) {
-                if (!this.visibleItems.has(entry.target)) {
-                  // 根据滚动方向设置不同的起始位置
-                  if (this.scrollDirection === 'up') {
-                    entry.target.style.transform = 'translateY(-20px)';
-                  } else {
-                    entry.target.style.transform = 'translateY(20px)';
+            // 只有在初始渲染完成后才处理滚动动画
+            if (!this.initialRender) {
+              entries.forEach(entry => {
+                // 当元素进入视口
+                if (entry.isIntersecting) {
+                  if (!this.visibleItems.has(entry.target)) {
+                    // 根据滚动方向设置不同的起始位置
+                    if (this.scrollDirection === 'up') {
+                      entry.target.style.transform = 'translateY(-20px)';
+                    } else {
+                      entry.target.style.transform = 'translateY(20px)';
+                    }
+
+                    // 强制重排以确保transform变化生效
+                    void entry.target.offsetWidth;
+
+                    // 添加动画类
+                    entry.target.classList.add('fade-in');
+                    this.visibleItems.add(entry.target);
                   }
-
-                  // 强制重排以确保transform变化生效
-                  void entry.target.offsetWidth;
-
-                  // 添加动画类
-                  entry.target.classList.add('fade-in');
-                  this.visibleItems.add(entry.target);
+                } else {
+                  // 当元素离开视口，重置其状态
+                  entry.target.classList.remove('fade-in');
+                  this.visibleItems.delete(entry.target);
                 }
-              } else {
-                // 当元素离开视口，重置其状态
-                entry.target.classList.remove('fade-in');
-                this.visibleItems.delete(entry.target);
-              }
-            });
+              });
+            }
           },
           {
             root: this.$refs.scrollbar.$el,
@@ -188,24 +194,37 @@ export default {
           }
       );
     },
-
-    animateInitialItems() {
-      // 找出初始可见的元素
-      const scrollElement = this.$refs.scrollbar.$el;
-      const viewportHeight = scrollElement.clientHeight;
-
+    // 修改这个方法，确保它显示所有元素
+    showAllItemsInitially() {
       document.querySelectorAll('.animate-item').forEach((item, index) => {
-        const rect = item.getBoundingClientRect();
-        // 检查元素是否在初始视口中
-        if (rect.top < viewportHeight && rect.bottom > 0) {
-          // 设置递增的延迟，实现序列动画效果
-          item.style.transitionDelay = `${index * 0.05}s`; // 使用更快的延迟
-          item.classList.add('fade-in');
-          this.visibleItems.add(item);
-        }
+        // 设置递增的延迟，实现序列动画效果
+        item.style.transitionDelay = `${index * 0.05}s`;
+        item.style.transform = 'translateY(20px)'; // 设置初始位置
+
+        // 强制重排以确保transform变化生效
+        void item.offsetWidth;
+
+        item.classList.add('fade-in');
+        this.visibleItems.add(item);
       });
     },
 
+    // 修改重置方法，只重置视口外的元素
+    resetItemsForScrollAnimation() {
+      document.querySelectorAll('.animate-item').forEach(item => {
+        const rect = item.getBoundingClientRect();
+        const scrollElement = this.$refs.scrollbar.$el;
+        const viewportHeight = scrollElement.clientHeight;
+
+        // 只重置视口外的元素
+        if (rect.top >= viewportHeight || rect.bottom <= 0) {
+          item.classList.remove('fade-in');
+          item.style.transitionDelay = '0s'; // 重置延迟
+          item.style.transform = this.scrollDirection === 'up' ? 'translateY(-20px)' : 'translateY(20px)';
+          this.visibleItems.delete(item);
+        }
+      });
+    },
     observeAllItems() {
       // 观察所有元素，包括已经显示的元素
       document.querySelectorAll('.animate-item').forEach(item => {
