@@ -24,8 +24,21 @@
         </ul>
       </div>
 
+
       <div class="tech-stack">
         <h3 class="animate-item"><i class="el-icon-s-operation"></i> 技术架构</h3>
+
+        <div class="tech-category">
+          <h4 class="animate-item">鉴权与安全</h4>
+          <ul>
+            <li class="animate-item"><i class="el-icon-check"></i> Spring Security + JWT + 单点登录</li>
+            <li class="animate-item"><i class="el-icon-check"></i> 多角色权限精细化控制</li>
+            <li class="animate-item"><i class="el-icon-check"></i> OpenResty 安全防护</li>
+            <li class="animate-item"><i class="el-icon-check"></i> 数据加密与脱敏</li>
+            <li class="animate-item"><i class="el-icon-check"></i> WAF 网络应用防火墙</li>
+          </ul>
+        </div>
+
         <div class="tech-category">
           <h4 class="animate-item">前端技术</h4>
           <ul>
@@ -77,6 +90,7 @@
           <li class="animate-item"><i class="el-icon-s-flag"></i> 完善的权限与角色管理</li>
           <li class="animate-item"><i class="el-icon-s-flag"></i> 多渠道消息通知系统</li>
           <li class="animate-item"><i class="el-icon-s-flag"></i> 全方位的财务管理流程</li>
+          <li class="animate-item"><i class="el-icon-s-flag"></i> 全面的安全防护机制</li>
         </ul>
       </div>
     </el-scrollbar>
@@ -223,7 +237,7 @@ export default {
   height: 100%;
   background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
   color: white;
-  border-radius: 8px 0 0 8px;
+  border-radius: 0px 0 0 0px;
   overflow: hidden;
 }
 

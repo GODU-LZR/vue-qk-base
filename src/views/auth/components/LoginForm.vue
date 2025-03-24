@@ -1,7 +1,7 @@
 <template>
   <div class="login-container">
     <h3 class="login-title">账号登录</h3>
-    <el-form :model="form" label-position="top" class="login-form">
+    <el-form :model="form" label-width="60px" class="login-form">
       <el-form-item label="邮箱" :rules="[{ required: true, message: '请输入邮箱', trigger: 'blur' }]">
         <el-input v-model="form.email" prefix-icon="el-icon-message" placeholder="请输入邮箱" />
       </el-form-item>
@@ -10,22 +10,19 @@
         <el-input v-model="form.password" prefix-icon="el-icon-lock" type="password" placeholder="请输入密码" />
       </el-form-item>
 
-      <el-form-item label="验证码" :rules="[{ required: true, message: '请输入验证码', trigger: 'blur' }]">
-        <el-row :gutter="10">
-          <el-col :span="14">
-            <el-input v-model="form.verificationCode" prefix-icon="el-icon-key" placeholder="请输入验证码" />
-          </el-col>
-          <el-col :span="10">
-            <el-button :disabled="isSending" @click="sendVerificationCode" type="primary">
-              {{ isSending ? `${countdown}秒后重试` : '获取验证码' }}
-            </el-button>
-          </el-col>
-        </el-row>
+      <el-form-item  label="验证码" :rules="[{ required: true, message: '请输入验证码', trigger: 'blur' }]">
+        <div class="verification-container">
+          <el-input v-model="form.verificationCode" prefix-icon="el-icon-key" placeholder="请输入验证码" />
+          <el-button :disabled="isSending" @click="sendVerificationCode" type="primary" class="verification-button">
+            {{ isSending ? `${countdown}秒后重试` : '获取验证码' }}
+          </el-button>
+        </div>
       </el-form-item>
 
-      <el-form-item>
-        <el-button type="primary" class="login-button" @click="handleSubmit">登 录</el-button>
-      </el-form-item>
+      <div class="action-buttons">
+        <el-button type="primary" class="action-button" @click="handleSubmit">登 录</el-button>
+        <el-button type="default" class="action-button" @click="handleRegister">注 册</el-button>
+      </div>
 
       <div class="account-tips">
         <p>超级管理员体验账号: admin@example.com</p>
@@ -47,12 +44,15 @@ export default {
         verificationCode: ''
       },
       isSending: false,
-      countdown: 60
+      countdown: 120
     }
   },
   methods: {
     handleSubmit() {
       this.$emit('login', this.form);
+    },
+    handleRegister() {
+      this.$router.push('/register');
     },
     sendVerificationCode() {
       if (this.isSending) return;
@@ -70,8 +70,8 @@ export default {
       }
 
       this.isSending = true;
-      this.countdown = 60;
-      this.$message.success('验证码已发送至您的邮箱');
+      this.countdown = 120;
+      this.$message.success('验证码已发送至您的邮箱，请注意查收');
 
       const timer = setInterval(() => {
         if (this.countdown > 0) {
@@ -88,19 +88,19 @@ export default {
 
 <style scoped>
 .login-container {
-  padding: 40px;
+  padding: 30px;
   background: white;
   border-radius: 8px;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
   width: 100%;
-  max-width: 460px;
+  max-width: 400px;
 }
 
 .login-title {
-  font-size: 28px;
+  font-size: 24px;
   color: #1890ff;
   text-align: center;
-  margin-bottom: 40px;
+  margin-bottom: 30px;
   font-weight: 600;
 }
 
@@ -109,30 +109,57 @@ export default {
   margin: 0 auto;
 }
 
-.login-button {
-  width: 100%;
-  height: 44px;
-  font-size: 16px;
-  margin-top: 10px;
-  background: #1890ff;
-  border-color: #1890ff;
-}
-
-.el-form-item {
-  margin-bottom: 25px;
-}
-
+/* 调整标签和输入框的布局 */
 :deep(.el-form-item__label) {
-  padding-bottom: 8px;
+  float: left;
+  text-align: right;
+  line-height: 40px;
   font-weight: 500;
+  padding-right: 8px;
+  font-size: 13px;
+}
+
+:deep(.el-form-item__content) {
+  margin-left: 60px !important;
+}
+
+/* 验证码布局 */
+.verification-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.verification-container .el-input {
+  flex: 1;
+}
+
+.verification-button {
+  height: 40px;
+  font-size: 13px;
+  padding: 0 8px;
+  white-space: nowrap;
+  min-width: 110px;
+}
+
+/* 按钮组样式 - 移除form-item的边距影响 */
+.action-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-top: 25px;
+  margin-bottom: 20px;
+  width: 100%;
+}
+
+.action-button {
+  width: 100%;
+  height: 40px;
+  font-size: 16px;
 }
 
 :deep(.el-input__inner) {
-  height: 44px;
-}
-
-.el-button:not(.login-button) {
-  height: 44px;
+  height: 40px;
 }
 
 .account-tips {
@@ -145,5 +172,10 @@ export default {
 
 .account-tips p {
   margin: 5px 0;
+}
+
+/* 确保按钮样式统一 */
+.el-button {
+  margin-left: 0 !important;
 }
 </style>

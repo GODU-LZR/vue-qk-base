@@ -5,18 +5,18 @@
         <TechIntro />
       </el-col>
       <el-col :xs="24" :sm="24" :md="10" :lg="8" class="login-form">
-        <LoginForm @login="handleLogin" />
+        <LoginForm @login="handleLogin" @register="handleRegister" />
       </el-col>
     </el-row>
   </div>
 </template>
 
 <script>
-import LoginForm from './LoginForm.vue'
-import TechIntro from './TechIntro.vue'
+import LoginForm from './components/LoginForm.vue'
+import TechIntro from './components/TechIntro.vue'
 
 export default {
-  name: 'LoginPage',
+  name: 'LoginView',
   components: {
     LoginForm,
     TechIntro
@@ -40,6 +40,9 @@ export default {
       } else {
         this.$message.error('登录失败，请检查邮箱、密码和验证码');
       }
+    },
+    handleRegister() {
+      this.$router.push('/register');
     }
   }
 }
