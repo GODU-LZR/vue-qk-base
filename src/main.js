@@ -36,7 +36,7 @@ app.$nextTick(() => {
   // 启动 qiankun
   start({
     prefetch: 'all',
-    singular: false,  // 允许多个子应用同时挂载
+    singular: true,  // 允许多个子应用同时挂载
     sandbox: {
       strictStyleIsolation: false, // 严格的样式隔离（Shadow DOM）
       experimentalStyleIsolation: true, // 实验性的样式隔离

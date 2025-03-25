@@ -2,6 +2,8 @@
 const { defineConfig } = require('@vue/cli-service')
 
 module.exports = defineConfig({
+  // 添加 runtimeCompiler 选项
+  runtimeCompiler: true,
   transpileDependencies: true,
   publicPath: '/', // 主应用部署在根路径
   devServer: {
