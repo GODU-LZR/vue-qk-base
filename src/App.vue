@@ -31,6 +31,7 @@
 import TopHeader from './components/TopHeader.vue';
 import SideBar from './components/SideBar.vue';
 import LoginView from './views/auth/LoginView.vue';
+import { isTokenValid } from '@/api/modules/auth';
 // 导入微应用配置
 import microApps from './micro/apps';
 
@@ -45,10 +46,11 @@ export default {
     return {
       isLoggedIn: false,  // 初始化为未登录状态
       isCollapsed: false,  // 侧边栏是否折叠
-      microAppPrefixes: ['/venue', '/posts', '/assistant', '/user', '/equipment', '/events', '/finance', '/hr'],
+      microAppPrefixes: [],
       needsRefresh: false, // 用于标记是否需要刷新
       isFirstMount: true,  // 用于检测应用首次挂载
-      isJustLoggedIn: false // 用于检测刚刚登录
+      isJustLoggedIn: false, // 用于检测刚刚登录
+      storageListener: null//用于存储 storage 监听器引用，以便正确移除
     };
   },
   computed: {
@@ -67,6 +69,7 @@ export default {
       handler(to, from) {
         const wasLoggedIn = this.isLoggedIn;
         this.checkLoginStatus();
+        console.log(`[App.vue Watch $route] 路由变化: ${from?.path || '首次加载'} -> ${to.path}, 检查后登录状态: ${this.isLoggedIn}`);
 
         // 检测来自登录页面的跳转
         if (from && from.name === 'Login' && this.isLoggedIn && !wasLoggedIn) {
@@ -115,36 +118,34 @@ export default {
   methods: {
     checkLoginStatus() {
       const wasLoggedIn = this.isLoggedIn;
-      this.isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+      // *** 修改点：使用 isTokenValid() 替代 localStorage.getItem('isLoggedIn') ***
+      this.isLoggedIn = isTokenValid(); // 调用导入的函数检查 token
 
-      // 如果刚刚登录成功，考虑刷新
+      if (this.isLoggedIn !== wasLoggedIn) {
+        console.log(`[App.vue checkLoginStatus] 登录状态更新: ${wasLoggedIn} -> ${this.isLoggedIn} (基于 isTokenValid)`);
+      }
+
       if (this.isLoggedIn && !wasLoggedIn && !this.isFirstMount) {
         this.needsRefresh = true;
-        console.log('检测到登录状态改变，标记需要刷新');
+        console.log('[App.vue checkLoginStatus] 检测到登录状态改变，标记需要刷新 (用户原有逻辑)');
       }
     },
 
     refreshBrowser() {
-      // 检查是否是刷新后的状态
+      // 检查是否是刚登录后刷新的状态
       if (history.state && history.state.justLoggedIn) {
-        console.log('刷新后的状态，不再重复刷新');
-        this.isJustLoggedIn = false;
-        return;
+        console.log('[App.vue refreshBrowser] 刷新后的状态，清除标记，不再重复刷新');
+        // 清理标记，防止下次普通刷新时误判
+        const currentState = { ...history.state };
+        delete currentState.justLoggedIn;
+        history.replaceState(currentState, document.title);
+        return; // 退出，防止循环刷新
       }
 
-      console.log('执行页面刷新...');
-      // 跳转到首页或仪表盘
-      const targetRoute = '/dashboard';
-
-      // 先导航到目标页面，然后刷新
-      this.$router.push(targetRoute).then(() => {
-        // 使用location.reload()进行页面刷新
-        window.location.reload();
-      }).catch(err => {
-        // 如果导航失败也直接刷新
-        console.error('导航失败，直接刷新:', err);
-        window.location.reload();
-      });
+      console.log('[App.vue refreshBrowser] 执行页面刷新以应用状态...');
+      // *** 简化：直接刷新 ***
+      window.location.reload();
+      // --- 移除之前的导航逻辑 ---
     },
 
     handleSidebarCollapse(collapsed) {
@@ -256,24 +257,40 @@ export default {
       setTimeout(() => this.refreshBrowser(), 100);
     },
 
-    // 添加全局事件监听
     setupGlobalEventListeners() {
-      // 自定义登录完成事件
       window.addEventListener('login-completed', this.onLoginCompleted);
 
-      // 监听本地存储变化
-      window.addEventListener('storage', event => {
-        if (event.key === 'isLoggedIn' && event.newValue === 'true' && event.oldValue !== 'true') {
-          console.log('本地存储检测到登录状态改变，准备刷新');
-          this.needsRefresh = true;
-          this.refreshBrowser();
+      // 定义监听函数并存储引用
+      this.storageListener = (event) => {
+        // *** 修改点：监听 auth_token 的变化，而不是 isLoggedIn ***
+        if (event.key === 'auth_token') {
+          console.log('[App.vue storage Listener] 检测到 localStorage 中的 auth_token 变化, 重新检查登录状态');
+          // Token 变化时（其他标签页登录/登出），重新检查并更新状态
+          this.checkLoginStatus();
+
+
+          // 原逻辑是基于 isLoggedIn === 'true' 触发刷新
+          // 现在改为：如果 auth_token 变为存在 (newValue 不为 null) 且之前不存在 (oldValue 为 null)
+          // 这表示在其他标签页登录了，可以考虑刷新当前页以同步UI
+          if (event.newValue !== null && event.oldValue === null) {
+            console.log('[App.vue storage Listener] 检测到其他标签页登录，准备刷新 (基于 auth_token 变化)');
+            // 注意：自动刷新可能打断用户操作，需谨慎使用
+            // this.refreshBrowser(); // 如果需要，取消注释此行
+          }
+          // 如果 auth_token 从存在变为不存在 (登出)，checkLoginStatus 会更新 isLoggedIn 为 false，
+          // UI 会自动响应（隐藏导航等），通常不需要强制刷新。
+
         }
-      });
+      };
+      // 添加监听器
+      window.addEventListener('storage', this.storageListener);
+      console.log('[App.vue setupGlobalEventListeners] 全局事件监听器已设置 (storage 监听 auth_token)');
     }
   },
   created() {
     this.initMicroAppPrefixes();
-
+    this.checkLoginStatus();
+    console.log(`[App.vue created] 初始登录状态检查完成: isLoggedIn = ${this.isLoggedIn}`);
     // 检查是否是从登录页刷新后的状态
     if (history.state && history.state.justLoggedIn) {
       console.log('检测到是刷新后的状态，标记已完成刷新');
@@ -391,9 +408,11 @@ export default {
   },
   beforeDestroy() {
     // 清理事件监听
-    window.removeEventListener('storage', this.checkLoginStatus);
     window.removeEventListener('login-completed', this.onLoginCompleted);
-
+    if (this.storageListener) {
+      window.removeEventListener('storage', this.storageListener);
+      console.log('[App.vue beforeDestroy] storage 事件监听器已移除');
+    }
     // 移除全局样式
     const style = document.getElementById('hide-scrollbar-style');
     if (style) {

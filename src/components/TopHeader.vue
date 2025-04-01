@@ -133,9 +133,14 @@ export default {
 
     handleCommand(command) {
       if (command === 'logout') {
-        localStorage.removeItem('isLoggedIn');
-        this.$message.success('已退出登录');
-        this.$router.push('/login');
+        this.$store.dispatch('logout')
+            .then(() => {
+              this.$message.success('已退出登录');
+              this.$router.push('/login');
+            })
+            .catch(error => {
+              this.$message.error('登出失败：' + error.message);
+            });
       } else if (command === 'profile') {
         this.$message.info('跳转到个人中心');
         // this.$router.push('/profile');
@@ -144,7 +149,6 @@ export default {
         // this.$router.push('/settings');
       }
     },
-
     // 获取天气数据
     fetchWeatherData() {
       // 尝试浏览器地理位置API

@@ -2,6 +2,9 @@ import Vue from 'vue';
 import Router from 'vue-router';
 import LoginView from '../views/auth/LoginView.vue';
 import RegisterView from '../views/auth/RegisterView.vue';
+// --- 1. 引入可靠的登录检查函数 ---
+// 请确保这个路径是正确的，指向你定义 isTokenValid 的文件
+import { isTokenValid } from '@/api/modules/auth';
 
 Vue.use(Router);
 
@@ -21,7 +24,7 @@ const routes = [
     path: '/',
     name: 'Home',
     component: HomePage,
-    meta: { title: '首页' }
+    meta: { title: '首页', requiresAuth: true } // 标记首页需要登录
   },
   {
     path: '/login',
@@ -35,81 +38,20 @@ const routes = [
     component: RegisterView,
     meta: { title: '注册' }
   },
-  {
-    path: '/posts',
-    name: 'Posts',
-    component: {
-      template: '<div>帖子子应用路由激活时加载</div>',
-    },
-    meta: { title: '体育论坛' }
-  },
-  {
-    path: '/assistant',
-    name: 'Assistant',
-    component: {
-      template: '<div>智能助理子应用路由激活时加载</div>',
-    },
-    meta: { title: '智能助理' }
-  },
-  {
-    path: '/user',
-    name: 'User',
-    component: {
-      template: '<div>用户信息子应用路由激活时加载</div>',
-    },
-    meta: { title: '用户信息' }
-  },
-  {
-    path: '/venue',
-    name: 'Venue',
-    component: {
-      template: '<div>体育场地子应用路由激活时加载</div>',
-    },
-    meta: { title: '体育场地' }
-  },
-  {
-    path: '/equipment',
-    name: 'Equipment',
-    component: {
-      template: '<div>体育器材子应用路由激活时加载</div>',
-    },
-    meta: { title: '体育器材' }
-  },
-  {
-    path: '/events',
-    name: 'Events',
-    component: {
-      template: '<div>体育赛事子应用路由激活时加载</div>',
-    },
-    meta: { title: '体育赛事' }
-  },
-  {
-    path: '/finance',
-    name: 'Finance',
-    component: {
-      template: '<div>体育开支子应用路由激活时加载</div>',
-    },
-    meta: { title: '体育开支' }
-  },
-  {
-    path: '/hr',
-    name: 'HR',
-    component: {
-      template: '<div>体育人事子应用路由激活时加载</div>',
-    },
-    meta: { title: '体育人事' }
-  },
-  // 重要：添加通配符路由，捕获所有未匹配的路由
-  // 这对于子应用中的嵌套路由非常重要
-  {
-    path: '*',
-    component: {
-      template: '<div id="subapp-catchall"></div>'
-    }
-  }
+  // --- 其他子应用路由 (假设都需要登录) ---
+  { path: '/posts', name: 'Posts', component: { template: '<div>帖子子应用路由激活时加载</div>' }, meta: { title: '体育论坛', requiresAuth: true } },
+  { path: '/assistant', name: 'Assistant', component: { template: '<div>智能助理子应用路由激活时加载</div>' }, meta: { title: '智能助理', requiresAuth: true } },
+  { path: '/user', name: 'User', component: { template: '<div>用户信息子应用路由激活时加载</div>' }, meta: { title: '用户信息', requiresAuth: true } },
+  { path: '/venue', name: 'Venue', component: { template: '<div>体育场地子应用路由激活时加载</div>' }, meta: { title: '体育场地', requiresAuth: true } },
+  { path: '/equipment', name: 'Equipment', component: { template: '<div>体育器材子应用路由激活时加载</div>' }, meta: { title: '体育器材', requiresAuth: true } },
+  { path: '/events', name: 'Events', component: { template: '<div>体育赛事子应用路由激活时加载</div>' }, meta: { title: '体育赛事', requiresAuth: true } },
+  { path: '/finance', name: 'Finance', component: { template: '<div>体育开支子应用路由激活时加载</div>' }, meta: { title: '体育开支', requiresAuth: true } },
+  { path: '/hr', name: 'HR', component: { template: '<div>体育人事子应用路由激活时加载</div>' }, meta: { title: '体育人事', requiresAuth: true } },
+  // --- 通配符路由 ---
+  { path: '*', component: { template: '<div id="subapp-catchall"></div>' } }
 ];
 
-// 在创建路由实例之前
+// 在创建路由实例之前 (处理 NavigationDuplicated 错误)
 const originalPush = Router.prototype.push;
 Router.prototype.push = function push(location) {
   return originalPush.call(this, location).catch(err => {
@@ -118,76 +60,85 @@ Router.prototype.push = function push(location) {
     }
   });
 };
+const originalReplace = Router.prototype.replace;
+Router.prototype.replace = function replace(location) {
+  return originalReplace.call(this, location).catch(err => {
+    if (err.name !== 'NavigationDuplicated') {
+      throw err;
+    }
+  });
+};
+
 
 const router = new Router({
-  mode: 'history', // 修改为 history 模式以匹配子应用
+  mode: 'history',
   base: '/',
   routes,
 });
 
+// --- 全局前置守卫 ---
 router.beforeEach((to, from, next) => {
-  const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+  // --- 2. 使用 isTokenValid() 进行登录检查 ---
+  const loggedIn = isTokenValid();
+  console.log(`[Router Guard] Navigating: From ${from?.path || 'N/A'} To ${to.path}. Token Valid (loggedIn): ${loggedIn}`);
 
-  // 免登录白名单，登录页和注册页不需要登录即可访问
-  const whiteList = ['Login', 'Register'];
+  const whiteList = ['/login', '/register']; // 免登录白名单
 
-  // 子应用路由前缀，这些路由应该被直接放行给子应用处理
-  const microAppPrefixes = ['/posts', '/assistant', '/user', '/venue', '/equipment', '/events', '/finance', '/hr'];
-
-  // 检查当前路由是否是子应用路由
-  const isMicroAppRoute = microAppPrefixes.some(prefix =>
-      to.path === prefix || to.path.startsWith(`${prefix}/`)
-  );
-
-  if (whiteList.includes(to.name)) {
-    // 如果目标路由在白名单中
-    if (isLoggedIn && to.name === 'Login') {
-      // 已登录用户访问登录页，重定向到首页
-      next({ path: '/', replace: true });
+  // --- 3. 修正守卫逻辑 ---
+  if (whiteList.includes(to.path)) {
+    // 访问白名单页面 (登录页/注册页)
+    if (loggedIn && to.path === '/login') {
+      // 如果已登录，访问登录页 -> 重定向到首页
+      console.log('[Router Guard] Already logged in, accessing /login. Redirecting to /.');
+      return next({ path: '/', replace: true }); // 使用 return 确保只调用一次 next
     } else {
-      // 其他情况直接放行
-      next();
-    }
-  } else if (isMicroAppRoute) {
-    // 子应用路由，检查登录状态后直接放行
-    if (!isLoggedIn) {
-      next({ path: '/login', replace: true });
-    } else {
-      // 子应用路由且已登录，直接放行
-      next();
-
-      // 为子应用路由设置页面标题
-      const appName = to.path.split('/')[1];
-      let title = '体育管理系统';
-
-      switch(appName) {
-        case 'posts': title = '体育论坛'; break;
-        case 'assistant': title = '智能助理'; break;
-        case 'user': title = '用户信息'; break;
-        case 'venue': title = '体育场地'; break;
-        case 'equipment': title = '体育器材'; break;
-        case 'events': title = '体育赛事'; break;
-        case 'finance': title = '体育开支'; break;
-        case 'hr': title = '体育人事'; break;
-      }
-
-      document.title = `${title} - 体育管理系统`;
+      // 访问注册页，或未登录访问登录页 -> 直接放行
+      console.log('[Router Guard] Accessing whitelist page or not logged in accessing /login. Allowing.');
+      return next(); // 使用 return
     }
   } else {
-    // 其他路由，检查登录状态
-    if (!isLoggedIn) {
-      // 未登录用户访问非白名单页面，重定向到登录页
-      next({ path: '/login', replace: true });
-    } else {
-      // 已登录用户访问非白名单页面，直接放行
-      next();
+    // 访问需要认证的页面 (非白名单)
+    if (loggedIn) {
+      // 已登录 -> 放行
+      console.log('[Router Guard] Logged in, accessing protected page. Allowing.');
 
-      // 设置页面标题
+      // --- 4. 在放行前设置标题 ---
+      let title = '体育管理系统';
+      const microAppPrefixes = ['/posts', '/assistant', '/user', '/venue', '/equipment', '/events', '/finance', '/hr'];
+      const isMicroAppRoute = microAppPrefixes.some(prefix =>
+          to.path === prefix || to.path.startsWith(`${prefix}/`)
+      );
+
       if (to.meta && to.meta.title) {
-        document.title = `${to.meta.title} - 体育管理系统`;
+        title = `${to.meta.title} - ${title}`;
+      } else if (isMicroAppRoute) {
+        const appName = to.path.split('/')[1];
+        switch(appName) {
+          case 'posts': title = `体育论坛 - ${title}`; break;
+          case 'assistant': title = `智能助理 - ${title}`; break;
+          case 'user': title = `用户信息 - ${title}`; break;
+          case 'venue': title = `体育场地 - ${title}`; break;
+          case 'equipment': title = `体育器材 - ${title}`; break;
+          case 'events': title = `体育赛事 - ${title}`; break;
+          case 'finance': title = `体育开支 - ${title}`; break;
+          case 'hr': title = `体育人事 - ${title}`; break;
+        }
       }
+      document.title = title;
+
+      return next(); // 使用 return
+    } else {
+      // 未登录 -> 重定向到登录页
+      console.log('[Router Guard] Not logged in, accessing protected page. Redirecting to /login.');
+      return next({
+        path: '/login',
+        replace: true,
+        query: { redirect: to.fullPath } // 保留重定向地址，登录后可以跳回
+      }); // 使用 return
     }
   }
+
 });
+
 
 export default router;

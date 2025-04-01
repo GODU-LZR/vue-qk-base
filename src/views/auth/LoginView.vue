@@ -26,6 +26,7 @@
 <script>
 import LoginForm from './components/LoginForm.vue'
 import TechIntro from './components/TechIntro.vue'
+import { parseToken, isTokenValid } from '@/api/modules/auth';
 
 export default {
   name: 'LoginView',
@@ -36,6 +37,15 @@ export default {
   data() {
     return {
       isLoading: false
+    }
+  },
+  created() {
+    console.log('[LoginView created] 登录视图组件实例已创建');
+    // *** 检查逻辑已使用 isTokenValid (保持不变) ***
+    if (isTokenValid()) {
+      console.log('[LoginView created] 检测到有效 Token, 用户已登录，准备跳转首页');
+    } else {
+      console.log('[LoginView created] 未检测到有效 Token 或 Token 已过期');
     }
   },
   methods: {
@@ -121,54 +131,59 @@ export default {
     },
 
     async handleLogin(userData) {
-      const { email, password, verificationCode } = userData;
-      if (email === 'admin@example.com' && password === 'admin' && verificationCode === '123456') {
-        // 显示组件内的加载状态
-        this.isLoading = true;
+      console.log('[LoginView handleLogin] 开始处理登录, 收到数据:', userData);
+      this.isLoading = true;
 
-        // 设置登录状态
-        localStorage.setItem('isLoggedIn', 'true');
-        this.$message.success('登录成功');
-
-        try {
-          // 创建全局加载遮罩
-          this.createGlobalLoadingMask();
-
-          // 添加标记到历史状态，防止刷新循环
-          history.replaceState({ justLoggedIn: true }, document.title);
-
-          // 先导航到首页
-          await this.$router.push({
-            path: '/',
-            replace: true
-          });
-
-          // 设置一个短暂延迟后刷新页面
-          setTimeout(() => {
-            // 触发自定义登录完成事件
-            window.dispatchEvent(new Event('login-completed'));
-
-            // 直接刷新页面
-            window.location.reload();
-          }, 300); // 延长一点时间，确保加载遮罩已完全显示
-
-        } catch (err) {
-          // 如果发生错误，隐藏加载状态
-          this.isLoading = false;
-
-          // 移除全局加载遮罩
-          const mask = document.getElementById('global-loading-mask');
-          if (mask) document.body.removeChild(mask);
-
-          if (err.name !== 'NavigationDuplicated') {
-            throw err;
-          }
+      try {
+        // 1. 确保 token 已设置 (假设 LoginForm 或 API 调用已完成)
+        if (userData && userData.token) {
+          localStorage.setItem('auth_token', userData.token);
+          console.log('[LoginView handleLogin] Token 已从 userData 获取并存入 localStorage');
+        } else if (!localStorage.getItem('auth_token')) {
+          console.error('[LoginView handleLogin] 错误: 未能确认 auth_token 已设置');
+          throw new Error('登录处理失败，未找到认证凭证');
         }
-      } else {
-        this.$message.error('登录失败，请检查邮箱、密码和验证码');
-      }
-    },
 
+        // 2. (已完成) 移除设置 'isLoggedIn'
+        console.log('[LoginView handleLogin] (已移除逻辑) 不再设置 localStorage 的 isLoggedIn 标记');
+
+        // 3. 成功消息 (保留)
+        this.$message.success('登录成功！准备刷新...');
+
+        // 4. 创建加载遮罩 (保留)
+        this.createGlobalLoadingMask();
+
+        // 5. 添加历史状态标记 (保留)
+        history.replaceState({ justLoggedIn: true }, document.title);
+        console.log('[LoginView handleLogin] 已设置 history.state.justLoggedIn = true');
+
+        // 6. 解析并存储用户信息 (保留)
+        // ... (存储 userInfo 到 localStorage 的逻辑) ...
+
+        // *** 7. 移除显式导航 ***
+        // console.log('[LoginView handleLogin] 准备导航到首页 /');
+        // await this.$router.replace({ path: '/' }); // <-- 移除此行
+
+        // 8. 触发刷新 (保留 reload)
+        setTimeout(() => {
+          console.log('[LoginView handleLogin] 触发全局 login-completed 事件 (如果需要)');
+          window.dispatchEvent(new Event('login-completed')); // 如果 App.vue 监听了这个事件
+
+          // --- 依赖页面刷新来应用登录状态 ---
+          console.log('[LoginView handleLogin] 延迟后执行页面刷新以应用登录状态');
+          window.location.reload(); // 强制刷新页面
+          // --- 刷新逻辑结束 ---
+
+        }, 300); // 保留短暂延迟
+
+      } catch (err) {
+        console.error('[LoginView handleLogin] 登录处理过程中发生错误:', err);
+        this.isLoading = false; // 隐藏加载状态
+        // ... (错误处理，清理 mask 和 token) ...
+        this.$message.error(err.message || '登录失败，请重试');
+      }
+      // 成功时因为页面刷新，不需要 finally 关闭 isLoading
+    },
     handleRegister() {
       this.$router.push('/register');
     }

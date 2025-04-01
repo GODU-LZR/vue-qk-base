@@ -1,16 +1,21 @@
 <template>
   <div class="login-container">
     <h3 class="login-title">账号登录</h3>
-    <el-form :model="form" label-width="60px" class="login-form">
-      <el-form-item label="邮箱" :rules="[{ required: true, message: '请输入邮箱', trigger: 'blur' }]">
+    <el-form
+        ref="loginForm"
+        :model="form"
+        :rules="rules"
+        label-width="60px"
+        class="login-form">
+      <el-form-item label="邮箱" prop="email">
         <el-input v-model="form.email" prefix-icon="el-icon-message" placeholder="请输入邮箱" />
       </el-form-item>
 
-      <el-form-item label="密码" :rules="[{ required: true, message: '请输入密码', trigger: 'blur' }]">
+      <el-form-item label="密码" prop="password">
         <el-input v-model="form.password" prefix-icon="el-icon-lock" type="password" placeholder="请输入密码" />
       </el-form-item>
 
-      <el-form-item  label="验证码" :rules="[{ required: true, message: '请输入验证码', trigger: 'blur' }]">
+      <el-form-item label="验证码" prop="verificationCode">
         <div class="verification-container">
           <el-input v-model="form.verificationCode" prefix-icon="el-icon-key" placeholder="请输入验证码" />
           <el-button :disabled="isSending" @click="sendVerificationCode" type="primary" class="verification-button">
@@ -20,7 +25,7 @@
       </el-form-item>
 
       <div class="action-buttons">
-        <el-button type="primary" class="action-button" @click="handleSubmit">登 录</el-button>
+        <el-button type="primary" class="action-button" @click="handleSubmit" :loading="isSubmitting">登 录</el-button>
         <el-button type="default" class="action-button" @click="handleRegister">注 册</el-button>
       </div>
 
@@ -34,6 +39,8 @@
 </template>
 
 <script>
+import { login } from '@/api/modules/auth';
+
 export default {
   name: 'LoginForm',
   data() {
@@ -43,13 +50,53 @@ export default {
         password: '',
         verificationCode: ''
       },
+      rules: {
+        email: [
+          { required: true, message: '请输入邮箱', trigger: 'blur' },
+          { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
+        ],
+        password: [
+          { required: true, message: '请输入密码', trigger: 'blur' },
+          { min: 5, message: '密码长度不能少于5个字符', trigger: 'blur' }
+        ],
+        verificationCode: [
+          { required: true, message: '请输入验证码', trigger: 'blur' }
+        ]
+      },
       isSending: false,
-      countdown: 120
+      countdown: 120,
+      isSubmitting: false
     }
   },
   methods: {
-    handleSubmit() {
-      this.$emit('login', this.form);
+    async handleSubmit() {
+      try {
+        // 表单验证
+        await this.$refs.loginForm.validate();
+
+        this.isSubmitting = true;
+
+        // 调用登录接口
+        const result = await login(this.form.email, this.form.password);
+
+        if (result.success) {
+          // 登录成功，向父组件传递登录信息
+          this.$emit('login', {
+            ...this.form,
+            userId: result.data.userId,
+            token: localStorage.getItem('auth_token')
+          });
+        } else {
+          // 登录失败
+          this.$message.error(result.message || '登录失败，请检查账号密码');
+        }
+      } catch (error) {
+        if (error.message) {
+          this.$message.error(error.message);
+        }
+      } finally {
+        this.isSubmitting = false;
+      }
     },
     handleRegister() {
       this.$router.push('/register');
@@ -72,6 +119,9 @@ export default {
       this.isSending = true;
       this.countdown = 120;
       this.$message.success('验证码已发送至您的邮箱，请注意查收');
+
+      // 这里可以调用发送验证码的API
+      // sendVerificationCodeApi(this.form.email);
 
       const timer = setInterval(() => {
         if (this.countdown > 0) {
