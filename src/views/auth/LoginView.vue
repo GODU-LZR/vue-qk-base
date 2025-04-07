@@ -14,7 +14,7 @@
       <div v-if="isLoading" class="custom-loading-mask">
         <div class="loading-content">
           <i class="el-icon-basketball"></i>
-          <div class="system-title">体育管理系统</div>
+          <div class="system-title">智能城市体育云平台</div>
           <div class="loading-text">加载中，请稍候...</div>
           <div class="loading-spinner"></div>
         </div>

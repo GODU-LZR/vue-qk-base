@@ -21,7 +21,7 @@
     </el-container>
 
     <el-footer class="footer-container" v-if="isLoggedIn">
-      © 2025 体育管理系统
+      智能城市体育云平台 V1.0 © 昆明茑能科技有限公司 2025
     </el-footer>
   </el-container>
 </template>

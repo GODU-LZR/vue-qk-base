@@ -1,7 +1,7 @@
 <template>
   <div class="logo">
     <i class="el-icon-basketball logo-icon"></i>
-    <h1 class="logo-text">体育管理系统</h1>
+    <h1 class="logo-text">智能城市体育云平台</h1>
   </div>
 </template>
 

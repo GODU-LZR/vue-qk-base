@@ -3,13 +3,27 @@
     <div class="logo-container">
       <i class="el-icon-basketball" style="font-size: 64px;"></i>
     </div>
-    <h2 class="system-title">体育管理系统</h2>
-    <div class="divider"></div>
+    <!-- 修改 H2 结构以包含图标和 分隔图标 -->
+    <h2 class="system-title">
+      <img :src="require('@/assets/deepseek.png')" alt="DeepSeek Logo" class="title-logo">
+      <!-- 将 X 替换为 Element UI 图标 -->
+      <i class="el-icon-link title-icon-separator"></i>
+      <span>智能城市体育云平台</span>
+    </h2>
 
+    <!-- 系统介绍移到这里，并移除 animate-item 类 -->
+    <div class="system-desc">
+      <p>本平台基于成熟的 Spring Cloud 微服务架构构建，确保了系统的高可用性与弹性伸缩能力，能够从容应对高并发访问和业务增长需求。核心集成 SpringAI 框架，亮点在于支持接入本地化部署的 DeepSeek 大模型及向量数据库，不仅保障数据隐私与安全，更能赋能平台实现便捷、精准的自然语言交互功能，极大提升用户操作体验。同时，平台融合了关系型数据库、缓存、搜索引擎等多样化存储技术，并实施了多层级安全防护策略，旨在打造一个功能强大、安全可靠、智能高效的一站式城市体育云服务解决方案。</p>
+    </div>
+    <div class="divider"></div>
+    <!-- 添加向下的箭头图标 -->
+    <div class="scroll-hint">
+      <i class="el-icon-arrow-down"></i>
+    </div>
+
+    <!-- 滚动区域开始 -->
     <el-scrollbar class="scrollable-content" ref="scrollbar">
-      <div class="system-desc animate-item">
-        <p>本系统是一套现代化的体育场馆资源管理与服务平台，采用微服务架构设计，支持场地预约、器材租借、赛事管理、财务管理、论坛交流等综合功能，为用户提供一站式体育资源管理解决方案。</p>
-      </div>
+      <!-- 系统介绍已移出 -->
 
       <div class="feature-section">
         <h3 class="animate-item"><i class="el-icon-menu"></i> 系统功能</h3>
@@ -23,7 +37,6 @@
           <li class="animate-item"><i class="el-icon-bell"></i> 多渠道消息通知</li>
         </ul>
       </div>
-
 
       <div class="tech-stack">
         <h3 class="animate-item"><i class="el-icon-s-operation"></i> 技术架构</h3>
@@ -94,9 +107,10 @@
         </ul>
       </div>
     </el-scrollbar>
+    <!-- 滚动区域结束 -->
 
     <div class="footer-info">
-      <p>体育管理系统 V1.0 © 2025</p>
+      <p>智能城市体育云平台 V1.0 © 昆明茑能科技有限公司 2025</p>
     </div>
   </div>
 </template>
@@ -265,12 +279,35 @@ export default {
   margin-bottom: 20px;
 }
 
+/* 标题容器使用 Flex 布局 */
 .system-title {
-  font-size: 32px;
-  margin-bottom: 20px;
-  text-align: center;
-  font-weight: 600;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center; /* 垂直居中对齐 */
+  justify-content: center; /* 水平居中，如果需要左对齐请移除或改为 flex-start */
+  /* 保留或调整原有的 margin/padding 等样式 */
+  margin: 10px 0; /* 示例：保留上下边距 */
+  font-size: 30px; /* 示例：设置基础字体大小，确保 em 单位有基准 */
+  font-weight: bold;
+  color: #fff; /* 示例：标题颜色 */
+}
+
+/* DeepSeek Logo 图标样式 */
+.title-logo {
+  height: 1.5em; /* 高度与当前字体大小一致 */
+  width: auto;  /* 宽度自适应 */
+  border-radius: 4px; /* 圆角 */
+  margin-right: 8px; /* 与右侧元素的间距 */
+  vertical-align: middle; /* 确保与其他行内元素基线对齐（虽然 flex align-items 效果更好） */
+  object-fit: contain; /* 保证图片内容完整显示 */
+}
+
+/* 分隔图标 (原 X 的位置) 样式 */
+.title-icon-separator {
+  font-size: 1em; /* 大小与当前字体大小一致 */
+  margin: 0 8px; /* 左右间距 */
+  color: #fff; /* 可以给图标设置一个颜色，例如灰色 */
+  /* line-height: 1; */ /* 对于 i 标签通常不需要特别设置 line-height */
+  /* Flex 布局下的 align-items: center 会处理垂直对齐 */
 }
 
 .divider {
@@ -293,12 +330,14 @@ export default {
   display: none; /* Chrome, Safari, Edge */
 }
 
+/* 系统介绍样式 (移出滚动区后) */
 .system-desc {
-  margin-bottom: 25px;
+  /* margin-bottom: 25px; */ /* 移到 scroll-hint 上 */
   padding: 15px;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   backdrop-filter: blur(5px);
+  /* 不再需要动画，移除 */
 }
 
 .system-desc p {
@@ -307,6 +346,48 @@ export default {
   opacity: 0.9;
   text-align: justify;
   margin: 0;
+}
+
+
+/* 向下箭头样式 */
+.scroll-hint {
+  text-align: center;
+  margin-top: 5px; /* 与上方介绍的间距 */
+  margin-bottom: 5px; /* 与下方滚动区的间距 */
+}
+
+.scroll-hint i {
+  font-size: 20px; /* 图标大小 */
+  color: rgba(255, 255, 255, 0.8); /* 图标颜色 */
+  animation: bounce 2s infinite; /* 添加跳动动画 */
+}
+
+/* 定义跳动动画 */
+@keyframes bounce {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-8px);
+  }
+  60% {
+    transform: translateY(-4px);
+  }
+}
+
+
+/* 滚动内容区域 */
+.scrollable-content {
+  flex: 1; /* 占据剩余空间 */
+  overflow-y: auto; /* 允许垂直滚动 */
+  padding-right: 5px; /* 为可能的滚动条留空间，如果需要显示 */
+  /* 隐藏滚动条样式保持不变 */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollable-content::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Edge */
 }
 
 .tech-stack h3, .feature-section h3 {
