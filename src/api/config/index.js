@@ -3,7 +3,7 @@ import { getClientFingerprint } from '@/api/modules/auth'; // 假设你的 auth.
 
 // 创建axios实例
 const instance = axios.create({
-    baseURL: 'http://localhost:8081/api', // 你的 API 网关地址
+    baseURL: 'http://124.71.58.72:8081/api', // 你的 API 网关地址
     timeout: 15000,
     withCredentials: true,
     headers: {
@@ -123,7 +123,7 @@ instance.interceptors.response.use(
 // 导出 axios 实例 (保持不变)
 export default {
     axios: instance,
-    apiBaseUrl: 'http://localhost:8081/api'
+    apiBaseUrl: 'http://124.71.58.72:8081/api'
 };
 
 

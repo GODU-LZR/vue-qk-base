@@ -1,7 +1,7 @@
 <template>
   <el-dropdown trigger="click" @command="handleCommand" class="avatar-dropdown">
     <div class="avatar-container">
-      <el-avatar :size="36" src="https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png"></el-avatar>
+      <el-avatar :size="36" :src="avatarUrl" icon="el-icon-user-solid"></el-avatar>
       <span class="username">{{ userRoleText }}:{{ username }}</span>
       <i class="el-icon-arrow-down el-icon--right"></i>
     </div>
@@ -21,12 +21,15 @@
 
 <script>
 import { parseToken, logout } from '@/api/modules/auth';
+import { actions } from '@/qiankun/actions'; // 导入共享的 actions
+import { getCurrentUserAvatarUrl } from '@/api/modules/user'; // 导入获取头像的 API
 
 export default {
   name: 'UserMenu',
   data() {
     return {
-      userInfo: null
+      userInfo: null,
+      avatarUrl: null // 2. 新增数据属性存储头像 URL
     };
   },
   computed: {
@@ -60,37 +63,55 @@ export default {
     }
   },
   methods: {
-    // 从 localStorage 获取 token 并解析用户信息
+    // 3. 修改：现在只解析 token，不直接处理头像
     getUserInfoFromToken() {
       const token = localStorage.getItem('auth_token');
       if (token) {
         this.userInfo = parseToken(token);
-        console.log('解析的用户信息:', this.userInfo); // 用于调试
+        console.log('[UserMenu] 解析的用户信息:', this.userInfo);
+        // 在获取用户信息后，触发获取头像
+        this.fetchAvatarUrl(); // <--- 在这里调用
       } else {
         this.userInfo = null;
+        this.avatarUrl = null; // 用户信息为空时，头像也置空
       }
     },
 
-    async handleCommand(command) {
+    // 4. 新增：获取头像 URL 的方法
+    async fetchAvatarUrl() {
+      console.log('[UserMenu] Fetching avatar URL...');
+      this.avatarUrl = null; // 先重置一下，避免显示旧头像
+      const url = await getCurrentUserAvatarUrl();
+      if (url) {
+        this.avatarUrl = url;
+        console.log('[UserMenu] Avatar URL set to:', url);
+      } else {
+        console.log('[UserMenu] No valid avatar URL received.');
+        // avatarUrl 保持 null，el-avatar 会显示默认图标
+      }
+    },
+
+    async handleCommand(command) { // (登出逻辑保持不变)
       if (command === 'logout') {
         try {
-          // 使用API登出函数而不是直接清除localStorage
           await logout();
-
-          // 更新本地状态
+          console.log('[UserMenu handleCommand] 登出成功，更新全局状态');
+          actions.setGlobalState({ isLoggedIn: false, token: null, userInfo: null });
           this.userInfo = null;
-
+          this.avatarUrl = null; // 登出时清除头像 URL
           this.$message.success('已退出登录');
-
-          // 关键修改：使用 replace 而不是 push，避免导航历史记录问题
           this.$router.replace('/login');
         } catch (error) {
-          console.error('登出失败:', error);
+          console.error('登出过程中发生错误:', error);
+          this.$message.error(error.message || '登出失败');
+          console.log('[UserMenu handleCommand] 登出失败，强制更新全局状态为登出');
+          actions.setGlobalState({ isLoggedIn: false, token: null, userInfo: null });
+          this.userInfo = null;
+          this.avatarUrl = null; // 登出失败也清除
+          this.$router.replace('/login');
         }
         return;
       }
-
-      // 发送给父组件处理其他命令
       this.$emit('command', command);
     }
   },

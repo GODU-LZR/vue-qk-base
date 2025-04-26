@@ -22,36 +22,36 @@ const apps = [
         container: '#micro-container',
         activeRule: '/user'
     },
-    {
-        name: 'venue-module',
-        entry: 'http://localhost:3004',
-        container: '#micro-container',
-        activeRule: '/venue',
-    },
-    {
-        name: 'equipment-module',
-        entry: 'http://localhost:3005',
-        container: '#micro-container',
-        activeRule: '/equipment'
-    },
-    {
-        name: 'events-module',
-        entry: 'http://localhost:3006',
-        container: '#micro-container',
-        activeRule: '/events'
-    },
+   //  {
+   //      name: 'venue-module',
+   //      entry: 'http://localhost:3004',
+   //      container: '#micro-container',
+   //      activeRule: '/venue',
+   //  },
+   //  {
+   //      name: 'equipment-module',
+   //      entry: 'http://localhost:3005',
+   //      container: '#micro-container',
+   //      activeRule: '/equipment'
+   //  },
+   //  {
+   //      name: 'events-module',
+   //      entry: 'http://localhost:3006',
+   //      container: '#micro-container',
+   //      activeRule: '/events'
+   //  },
     // {
     //     name: 'finance-module',
     //     entry: 'http://localhost:3007',
     //     container: '#micro-container',
     //     activeRule: '/finance'
     // },
-    // {
-    //     name: 'hr-module',
-    //     entry: 'http://localhost:3008',
-    //     container: '#micro-container',
-    //     activeRule: '/hr'
-    // },
+    {
+        name: 'hr-module',
+        entry: 'http://localhost:3008',
+        container: '#micro-container',
+        activeRule: '/hr'
+    },
     // ...更多模块
 ];
 

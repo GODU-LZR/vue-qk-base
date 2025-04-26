@@ -48,22 +48,17 @@ const routes = [
   { path: '/finance', name: 'Finance', component: { template: '<div>体育开支子应用路由激活时加载</div>' }, meta: { title: '体育开支', requiresAuth: true } },
   { path: '/hr', name: 'HR', component: { template: '<div>体育人事子应用路由激活时加载</div>' }, meta: { title: '体育人事', requiresAuth: true } },
   // --- 通配符路由 ---
-  // 通常用于 qiankun 等微前端场景，确保路径存在，由 qiankun 决定加载哪个子应用或显示 404
   { path: '*', component: { template: '<div id="subapp-catchall">子应用容器或404</div>' } }
 ];
 
 // 处理 NavigationDuplicated 错误 (保持不变)
-// 这是为了防止直接调用 router.push/replace 到相同路由时控制台报错
 const originalPush = Router.prototype.push;
 Router.prototype.push = function push(location, onResolve, onReject) {
   if (onResolve || onReject) return originalPush.call(this, location, onResolve, onReject);
   return originalPush.call(this, location).catch(err => {
-    // 捕获 NavigationDuplicated 或 Redirected 错误，避免它们成为未处理的 Promise rejection
     if (err.name !== 'NavigationDuplicated' && !err.message.includes('Redirected when going from')) {
-      // 重新抛出其他类型的错误
       throw err;
     }
-    // 对于 NavigationDuplicated 和 Redirected，静默处理或仅警告
     // console.warn('Navigation prevented in push:', err.message);
   });
 };
@@ -86,22 +81,26 @@ const router = new Router({
   routes,
 });
 
-// --- 全局前置守卫 ---
+// --- 全局前置守卫 (核心修改点在这里) ---
 router.beforeEach((to, from, next) => {
   const loggedIn = isTokenValid();
-  console.log(`[Router Guard] Navigating: From ${from?.path || 'N/A'} To ${to.path}. Token Valid (loggedIn): ${loggedIn}`);
+  console.log(`[Router Guard] Navigating: From ${from?.path || 'N/A'} To ${to.path}. Token Valid: ${loggedIn}`);
   const whiteList = ['/login', '/register']; // 白名单路由
 
   // 1. 如果要去的是白名单页面
   if (whiteList.includes(to.path)) {
-    // 1.1 如果已登录，且要去登录页，重定向到首页
+    // 1.1 如果已登录，且要去登录页 (包括登录后刷新页面的情况)
     if (loggedIn && to.path === '/login') {
       console.log('[Router Guard] Already logged in, accessing /login. Redirecting to /.');
-      next({ path: '/', replace: true }); // 使用 return 避免后续代码执行 (虽然 next() 本身会中断)
+      // 因为 LoginView 会 reload 页面，刷新后如果 token 有效，这里会捕获到
+      // 并将用户重定向到首页，符合预期
+      next({ path: '/', replace: true });
+      return; // 明确返回
     } else {
       // 1.2 如果未登录，或已登录但去的是注册页，直接放行
       console.log('[Router Guard] Accessing whitelist page or not logged in accessing /login/register. Allowing.');
       next();
+      return; // 明确返回
     }
   }
   // 2. 如果要去的不是白名单页面 (即受保护页面)
@@ -133,70 +132,61 @@ router.beforeEach((to, from, next) => {
       document.title = title;
       // --- 放行 ---
       next();
+      return; // 明确返回
     }
-    // 2.2 如果未登录，**先提示，再重定向**
+    // 2.2 如果未登录 (Token 过期或首次访问)，**先提示，再重定向到干净的 /login**
     else {
       console.log('[Router Guard] Not logged in, accessing protected page. Showing message and redirecting to /login.');
 
-      // --- !!! 在这里直接调用 Message.warning !!! ---
-      // 这是显示“登录过期”提示的最佳位置，因为它发生在实际重定向前
-      try {
-        Message.warning({
-          message: '登录状态已过期或无效，请重新登录',
-          duration: 3000, // 消息显示 3 秒
-          onClose: () => { console.log('[Router Guard] Expired/invalid token message closed.'); } // 可选调试
-        });
-        console.log('[Router Guard] Message.warning call potentially succeeded.');
-      } catch (msgError) {
-        console.error('[Router Guard] Error calling Message.warning:', msgError);
-        // alert('登录状态已过期或无效，请重新登录 (Fallback Alert)'); // 后备方案
+      // --- 显示提示信息 ---
+      // 添加检查避免重复显示
+      if (!document.querySelector('.el-message')) {
+        try {
+          Message.warning({
+            message: '登录状态已过期或无效，请重新登录',
+            duration: 3000, // 消息显示 3 秒
+            onClose: () => { console.log('[Router Guard] Expired/invalid token message closed.'); } // 可选调试
+          });
+          console.log('[Router Guard] Message.warning call potentially succeeded.');
+        } catch (msgError) {
+          console.error('[Router Guard] Error calling Message.warning:', msgError);
+        }
+      } else {
+        console.log('[Router Guard] Message already visible, skipping new one.');
       }
-      // --- END OF MESSAGE CALL ---
 
       // 可选：在这里清除无效 token (如果 isTokenValid 内部没做)
       // localStorage.removeItem('auth_token');
 
-      // --- 然后执行重定向到登录页 ---
+      // --- !!! 核心修改：重定向到 /login，不带 redirect query !!! ---
+      // 这将阻止无限循环和 URL 中嵌套 redirect 参数的问题
       next({
         path: '/login',
-        replace: true, // 使用 replace 避免用户可以通过浏览器后退回到需要登录的页面
-        query: { redirect: to.fullPath } // 保存用户原本想去的地址，登录后可以跳回
+        replace: true // 使用 replace 避免用户可以通过浏览器后退回到需要登录的页面
+        // REMOVED: query: { redirect: to.fullPath } // 不再传递原始路径作为查询参数
       });
+      return; // 明确返回
     }
   }
 });
 
-// --- 全局导航错误处理 ---
-// 主要用于捕获 NavigationDuplicated 和其他非预期路由错误
+// --- 全局导航错误处理 (保持不变) ---
 router.onError(error => {
-  // --- 1. 添加顶层日志，确认处理器是否被触发 ---
   console.log('!!!!!! router.onError 处理器被触发了 !!!!!! Error Name:', error.name, 'Message:', error.message);
-  // 打印原始错误对象，便于查看更多细节
   console.error('[Router Error Handler] Caught Raw Error:', error);
 
-  // --- 2. 检查错误类型 ---
   const isRedirectError = error.message && error.message.includes('Redirected when going from');
   const isNavDuplicated = error.name === 'NavigationDuplicated';
 
-  // --- 3. 处理 "Redirected" 错误 ---
-  // 注意：我们不再在这里显示“登录过期”消息，因为它已在 beforeEach 中处理。
-  // 但我们仍然可以记录这个错误，确认它是否被 onError 捕获。
   if (isRedirectError) {
     console.warn('[Router Error Handler] Caught Redirected error. User message was handled in beforeEach. Error:', error.message);
-    // 不需要在这里做任何用户界面操作
   }
-  // --- 4. 处理 "NavigationDuplicated" 错误 (重复导航到同一路由) ---
   else if (isNavDuplicated) {
-    // 通常我们忽略这个错误，或者只在控制台给个警告
     console.warn('[Router Error Handler] Navigation duplicated. Ignoring.');
-    // 如果需要，也可以给用户提示，但一般不建议打扰用户
-    // Vue.nextTick(() => { Message.info('您已在当前页面'); });
   }
-  // --- 5. 处理其他未预料到的路由错误 ---
   else {
     console.error('Unhandled Vue Router Error:', error);
-    // --- 同样使用 nextTick 和 try...catch 保证健壮性 ---
-    Vue.nextTick(() => { // 使用 nextTick 确保在 DOM 更新后显示消息
+    Vue.nextTick(() => {
       try {
         Message.error({
           message: '页面跳转时发生未知错误，请稍后重试',
@@ -204,7 +194,6 @@ router.onError(error => {
         });
       } catch (msgError) {
         console.error('[Router Error Handler] Error calling Message.error:', msgError);
-        // alert('页面跳转时发生未知错误 (Fallback Alert)');
       }
     });
   }

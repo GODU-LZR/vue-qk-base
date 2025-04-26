@@ -44,104 +44,143 @@ export async function getClientFingerprint() {
 
 
 /**
- * 用户登录
- * @param {string} email - 邮箱
- * @param {string} password - 密码
- * @returns {Promise} - 返回登录结果
+ * 用户登录 (更新：添加 verifyCode)
+ * @param {string} email
+ * @param {string} password
+ * @param {string} verifyCode - 验证码
+ * @returns {Promise<{success: boolean, message?: string, data?: object, error?: any}>}
  */
-export const login = async (email, password) => {
+export const login = async (email, password, verifyCode) => {
     try {
-        // === 新增：在发送登录请求前获取客户端指纹 ===
         const clientFingerprint = await getClientFingerprint();
-        // === 新增结束 ===
+        console.log("登录时发送的指纹:", clientFingerprint);
+        console.log("登录时发送的验证码:", verifyCode);
 
-        console.log("登录时发送的指纹:", clientFingerprint); // 调试信息
-
-        // 使用axios而不是api
+        // 发送请求
         const response = await axios.post('/user/login', {
             email,
             password,
-            clientFingerprint // === 新增：将指纹添加到请求体 ===
+            verifyCode,
+            clientFingerprint
         });
 
-        // 假设后端返回的数据结构为 { code: 200, message: '操作成功', data: { token, userId } }
-        // 注意：后端返回的 data 中可能只有 token，userId 需要从 token 解析
-        // 确保你的后端登录接口确实返回了 token
-        if (!response || !response.data || !response.data.token) {
-            console.error('登录响应无效，未找到 token:', response);
-            throw new Error('登录失败，响应无效');
+        // *** 正确的检查逻辑 ***
+        // 检查响应是否存在，code 是否为 200，data 是否存在，以及 data.token 是否存在
+        if (response && response.code === 200 && response.data && response.data.token) {
+            // 从 response.data 中获取 token 和 userId
+            const { token } = response.data; // userId 可能也在 response.data 中，根据需要解构
+            const userId = response.data.userId; // 显式获取 userId
+
+            localStorage.setItem('auth_token', token);
+            const userInfo = parseToken(token); // 调用你的 parseToken 函数
+
+            if (!userInfo) {
+                console.error('Token 解析失败:', token);
+                localStorage.removeItem('auth_token');
+                throw new Error('登录成功，但无法解析用户信息');
+            }
+
+            console.log('[API] Login successful, UserInfo:', userInfo);
+            // 确保返回的 data 结构与 LoginForm.vue 中 $emit 时期望的一致
+            return {
+                success: true,
+                data: { ...userInfo, userId: userId, token: token } // 返回包含解析后信息、userId 和 token 的对象
+            };
+        } else {
+            // 如果 code 不是 200 或 data/token 缺失
+            console.error('登录响应无效或业务失败:', response);
+            const message = response?.message || '登录失败，响应数据无效'; // 使用后端消息或默认消息
+            throw new Error(message);
         }
-        const { token } = response.data; // 假设 data 中有 token 字段
+        // *** 检查逻辑结束 ***
 
-        // 存储 token 到本地存储
-        localStorage.setItem('auth_token', token);
-
-        // 解析 token 中的用户信息 (你的 parseToken 函数)
-        const userInfo = parseToken(token); // 使用你现有的 parseToken 函数
-
-        // 确保 userInfo 解析成功
-        if (!userInfo) {
-            console.error('Token 解析失败:', token);
-            // 清理无效的 token
-            localStorage.removeItem('auth_token');
-            throw new Error('登录成功，但无法解析用户信息');
-        }
-
-        return {
-            success: true,
-            // 返回解析后的用户信息，确保包含 userId
-            data: { ...userInfo }
-        };
     } catch (error) {
-        // 清理可能已存储的无效 token
-        localStorage.removeItem('auth_token');
-        console.error('登录过程中出错:', error); // 打印更详细的错误
+        localStorage.removeItem('auth_token'); // 清理 token
+        console.error('登录过程中出错:', error);
         return {
             success: false,
-            // 优先使用 error 对象中的 message，否则提供通用消息
-            message: error.message || '登录失败，请稍后重试',
-            error // 可以选择性地返回原始错误对象用于调试
+            message: error.message || '登录失败，请检查输入或稍后重试',
+            error
         };
     }
 };
 
+/**
+ * 用户注册 (与之前一致)
+ * @param {object} registrationData - { email, password, username, realName, avatar, verifyCode }
+ * @returns {Promise<{success: boolean, message?: string, data?: any}>}
+ */
+export const register = async (registrationData) => {
+    console.log('[API] Attempting to register user:', registrationData.email);
+    try {
+        const response = await axios.post('/user/register', registrationData);
+        // 假设拦截器成功时返回 data 部分 (LoginResponse，仅含 userId)
+        console.log('[API] Registration request successful:', response);
+        return { success: true, data: response };
+    } catch (error) {
+        console.error('[API] Registration failed:', error);
+        return {
+            success: false,
+            message: error.message || '注册失败，请稍后重试'
+        };
+    }
+};
 
 export const logout = async () => {
     try {
-        // 获取 token
+        // 获取 token 和 指纹 *之前* 清除 localStorage
         const token = localStorage.getItem('auth_token');
+        let fingerprint = null;
+        try {
+            fingerprint = await getClientFingerprint(); // 尝试获取指纹
+        } catch (fpError) {
+            console.error("登出时获取指纹失败:", fpError);
+            // 根据策略决定是否继续，如果后端强制要求指纹，这里可能需要抛出错误
+        }
 
-        // 先清除本地存储的 token，避免后续路由守卫问题
+        // 先清除本地存储的 token
         localStorage.removeItem('auth_token');
-        localStorage.removeItem('userInfo');
+        localStorage.removeItem('userInfo'); // 假设也需要清除这个
 
         // 如果没有token，直接返回成功
         if (!token) {
             return { success: true };
         }
 
-        // 调用登出 API
-        await axios.post('/user/logout', null, {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
-
-        return {
-            success: true
+        // 准备请求头
+        const headers = {
+            'Authorization': `Bearer ${token}`
         };
+        // 如果获取到指纹，并且后端需要，则添加
+        if (fingerprint) {
+            headers['X-Client-Fingerprint'] = fingerprint;
+            console.log("登出请求添加的指纹头:", fingerprint);
+        } else {
+            console.warn("登出请求未找到或无法添加指纹头");
+            // 如果后端强制要求指纹，没有指纹的请求会失败 (如日志所示)
+        }
+
+        // 调用登出 API，传入准备好的 headers
+        await axios.post('/user/logout', null, { headers });
+
+        // 如果 API 调用成功 (没有抛出错误)
+        return { success: true };
+
     } catch (error) {
         console.error('Logout API error:', error);
 
-        // 即使 API 调用失败，确保本地 token 已被清除
+        // 即使 API 调用失败，确保本地 token 已被清除 (虽然上面已经清了，双重保险)
         localStorage.removeItem('auth_token');
         localStorage.removeItem('userInfo');
 
-        // 忽略401错误，因为这可能是token已经失效
+        // 忽略401错误 (保持你原来的逻辑)
+        // 注意：如果修复了指纹问题，这里的 401 可能意味着 token 真的过期了
         if (error.response && error.response.status === 401) {
-            return { success: true };
+            console.warn("Logout API 返回 401，可能 token 过期或指纹仍有问题");
+            return { success: true }; // 视为登出成功
         }
 
+        // 其他错误视为失败
         return {
             success: false,
             message: error.response?.data?.message || '登出过程中遇到问题',

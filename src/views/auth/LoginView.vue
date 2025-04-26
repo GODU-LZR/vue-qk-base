@@ -27,6 +27,7 @@
 import LoginForm from './components/LoginForm.vue'
 import TechIntro from './components/TechIntro.vue'
 import { parseToken, isTokenValid } from '@/api/modules/auth';
+import { actions } from '@/qiankun/actions'; // 导入共享的 actions
 
 export default {
   name: 'LoginView',
@@ -135,54 +136,90 @@ export default {
       this.isLoading = true;
 
       try {
-        // 1. 确保 token 已设置 (假设 LoginForm 或 API 调用已完成)
-        if (userData && userData.token) {
-          localStorage.setItem('auth_token', userData.token);
-          console.log('[LoginView handleLogin] Token 已从 userData 获取并存入 localStorage');
-        } else if (!localStorage.getItem('auth_token')) {
-          console.error('[LoginView handleLogin] 错误: 未能确认 auth_token 已设置');
-          throw new Error('登录处理失败，未找到认证凭证');
+        // 1. 确保 token 已设置
+        let currentToken = localStorage.getItem('auth_token');
+        if (!currentToken) {
+          if (userData && userData.token) {
+            localStorage.setItem('auth_token', userData.token);
+            currentToken = userData.token;
+            console.log('[LoginView handleLogin] Token 已从 userData 获取并存入 localStorage');
+          } else {
+            console.error('[LoginView handleLogin] 错误: 未能确认 auth_token 已设置');
+            throw new Error('登录处理失败，未找到认证凭证');
+          }
+        } else {
+          console.log('[LoginView handleLogin] 检测到 localStorage 中已存在 Token');
         }
 
-        // 2. (已完成) 移除设置 'isLoggedIn'
-        console.log('[LoginView handleLogin] (已移除逻辑) 不再设置 localStorage 的 isLoggedIn 标记');
+        // *** 新增：解析用户信息并更新全局状态 ***
+        const currentUserInfo = parseToken(currentToken);
+        if (currentUserInfo) {
+          console.log('[LoginView handleLogin] 解析用户信息成功, 更新全局状态:', currentUserInfo);
+          actions.setGlobalState({
+            isLoggedIn: true,
+            token: currentToken,
+            userInfo: currentUserInfo
+          });
+        } else {
+          // 如果 token 解析失败（理论上不应该在这里发生，因为 login API 应该保证返回有效 token）
+          console.error('[LoginView handleLogin] 警告: Token 解析失败，无法更新全局用户信息');
+          // 也可以选择只更新登录状态和 token
+          actions.setGlobalState({
+            isLoggedIn: true, // 标记为已登录
+            token: currentToken,
+            userInfo: null // 用户信息未知
+          });
+        }
+        // *** 新增结束 ***
 
-        // 3. 成功消息 (保留)
+        // 2. (已完成) 移除设置 'isLoggedIn'
+        // ...
+
+        // 3. 成功消息
         this.$message.success('登录成功！准备刷新...');
 
-        // 4. 创建加载遮罩 (保留)
+        // 4. 创建加载遮罩
         this.createGlobalLoadingMask();
 
-        // 5. 添加历史状态标记 (保留)
+        // 5. 添加历史状态标记
         history.replaceState({ justLoggedIn: true }, document.title);
         console.log('[LoginView handleLogin] 已设置 history.state.justLoggedIn = true');
 
-        // 6. 解析并存储用户信息 (保留)
-        // ... (存储 userInfo 到 localStorage 的逻辑) ...
+        // 6. 解析并存储用户信息 (上面已处理，这里无需重复)
 
-        // *** 7. 移除显式导航 ***
-        // console.log('[LoginView handleLogin] 准备导航到首页 /');
-        // await this.$router.replace({ path: '/' }); // <-- 移除此行
+        // 7. 移除显式导航 (保持不变)
 
-        // 8. 触发刷新 (保留 reload)
+        // 8. 触发刷新
         setTimeout(() => {
           console.log('[LoginView handleLogin] 触发全局 login-completed 事件 (如果需要)');
-          window.dispatchEvent(new Event('login-completed')); // 如果 App.vue 监听了这个事件
+          window.dispatchEvent(new Event('login-completed'));
 
-          // --- 依赖页面刷新来应用登录状态 ---
           console.log('[LoginView handleLogin] 延迟后执行页面刷新以应用登录状态');
-          window.location.reload(); // 强制刷新页面
-          // --- 刷新逻辑结束 ---
+          window.location.reload(); // 刷新
 
-        }, 300); // 保留短暂延迟
+        }, 300);
 
       } catch (err) {
         console.error('[LoginView handleLogin] 登录处理过程中发生错误:', err);
-        this.isLoading = false; // 隐藏加载状态
+        this.isLoading = false;
+
+        // *** 新增：登录失败时也确保全局状态为登出 ***
+        actions.setGlobalState({
+          isLoggedIn: false,
+          token: null,
+          userInfo: null
+        });
+        // *** 新增结束 ***
+
         // ... (错误处理，清理 mask 和 token) ...
+        // 移除遮罩的逻辑应该在这里添加
+        const mask = document.getElementById('global-loading-mask');
+        if (mask) document.body.removeChild(mask);
+        localStorage.removeItem('showLoadingMask'); // 清理标记
+        localStorage.removeItem('auth_token'); // 确保失败时token被清理
+
         this.$message.error(err.message || '登录失败，请重试');
       }
-      // 成功时因为页面刷新，不需要 finally 关闭 isLoading
     },
     handleRegister() {
       this.$router.push('/register');
