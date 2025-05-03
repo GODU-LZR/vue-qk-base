@@ -22,12 +22,12 @@ const apps = [
         container: '#micro-container',
         activeRule: '/user'
     },
-   //  {
-   //      name: 'venue-module',
-   //      entry: 'http://localhost:3004',
-   //      container: '#micro-container',
-   //      activeRule: '/venue',
-   //  },
+    {
+        name: 'venue-module',
+        entry: 'http://localhost:3004',
+        container: '#micro-container',
+        activeRule: '/venue',
+    },
    //  {
    //      name: 'equipment-module',
    //      entry: 'http://localhost:3005',

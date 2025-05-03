@@ -11,7 +11,7 @@ export const getCurrentUserAvatarUrl = async () => {
     console.log('[API] Attempting to fetch current user avatar URL...');
     try {
 
-        const response = await axios.get('/user/currentUser/avatar');
+        const response = await axios.get('/user/me/avatar');
 
         // *** 正确的检查逻辑 ***
         // 1. 检查业务响应码是否成功 (code === 200)

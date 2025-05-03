@@ -193,12 +193,9 @@ export const logout = async () => {
 /**
  * 解析 JWT token
  * @param {string} token - JWT token 字符串
- * @returns {Object} - 解析后的用户信息
+ * @returns {Object | null} - 解析后的用户信息，包含 clientFingerprint，或在失败时返回 null
  */
 export const parseToken = (token) => {
-    // ... 你之前的 parseToken 实现 ...
-    // 确保它能正确解析后端生成的 JWT payload
-    // 特别是 userId, username, email, status, roles, exp 等字段
     if (!token) return null;
     try {
         const parts = token.split('.');
@@ -208,18 +205,23 @@ export const parseToken = (token) => {
         const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
         const decoded = JSON.parse(jsonPayload);
 
-        // 注意：确保这里的字段名 (userId, username, email, status, roles, iat, exp)
-        // 与你后端 JwtUtil 生成 token 时放入 claims 的 key 一致！
+        // 检查必要的字段是否存在 (可选但推荐)
+        // if (!decoded || typeof decoded.userId === 'undefined' || typeof decoded.exp === 'undefined') {
+        //     throw new Error('缺少必要的 JWT claims (userId, exp)');
+        // }
+
+        // --- 修改返回的对象，添加 clientFingerprint ---
         return {
-            userId: decoded.userId, // 来自 claims.put("userId", ...)
-            username: decoded.username, // 来自 claims.put("username", ...)
-            email: decoded.email, // 来自 claims.put("email", ...)
-            status: decoded.status, // 来自 claims.put("status", ...)
-            // 后端存的是逗号分隔的字符串，前端解析为数组
-            roles: decoded.roles ? decoded.roles.split(',') : [], // 来自 claims.put("roles", rolesStr)
-            // 使用标准的 iat (Issued At) 和 exp (Expiration Time)
-            issuedAt: decoded.iat ? new Date(decoded.iat * 1000) : null, // 来自 .setIssuedAt(now)
-            expiration: decoded.exp ? new Date(decoded.exp * 1000) : null // 来自 .setExpiration(expiryDate)
+            userId: decoded.userId,
+            username: decoded.username,
+            email: decoded.email,
+            status: decoded.status,
+            roles: decoded.roles ? decoded.roles.split(',') : [],
+            issuedAt: decoded.iat ? new Date(decoded.iat * 1000) : null,
+            expiration: decoded.exp ? new Date(decoded.exp * 1000) : null,
+            // --- 添加 clientFingerprint 字段 ---
+            clientFingerprint: decoded.clientFingerprint // <-- 确保从解码后的 payload 中获取
+            // --- 确保这里的 clientFingerprint 字段名与 JWT payload 中的一致 ---
         };
     } catch (error) {
         console.error('Token 解析失败:', error);
