@@ -47,7 +47,7 @@ export default {
       const roleMap = {
         'SUPER_ADMIN': '超级管理员', 'USER_ADMIN': '用户管理员', 'HR_ADMIN': '人事管理员',
         'VENUE_ADMIN': '场地管理员', 'EQUIPMENT_ADMIN': '器材管理员', 'EVENT_ADMIN': '赛事管理员',
-        'FINANCE_ADMIN': '财务管理员', 'FORUM_ADMIN': '论坛管理员', 'USER': '普通用户'
+        'FINANCE_ADMIN': '财务管理员', 'FORUM_ADMIN': '论坛管理员', 'USER': '普通用户', 'VIP_USER': '会员用户'
       };
       const primaryRole = this.userInfo.roles[0]; // 可以根据需要选择显示哪个角色
       return roleMap[primaryRole] || primaryRole;

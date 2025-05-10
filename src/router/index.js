@@ -1,7 +1,6 @@
 import Vue from 'vue';
 import Router from 'vue-router';
-// --- 引入 Element UI 的 Message 组件 ---
-import { Message } from 'element-ui'; // 确保你已经安装并正确配置了 Element UI
+import { Message } from 'element-ui';
 import LoginView from '../views/auth/LoginView.vue'; // 确认路径正确
 import RegisterView from '../views/auth/RegisterView.vue'; // 确认路径正确
 import { isTokenValid } from '@/api/modules/auth'; // 确认路径正确
@@ -19,6 +18,7 @@ const HomePage = {
   `
 };
 
+// 路由定义 (保持不变)
 const routes = [
   {
     path: '/',
@@ -38,17 +38,19 @@ const routes = [
     component: RegisterView,
     meta: { title: '注册' }
   },
-  // --- 其他子应用路由 (假设都需要登录) ---
-  { path: '/posts', name: 'Posts', component: { template: '<div>帖子子应用路由激活时加载</div>' }, meta: { title: '体育论坛', requiresAuth: true } },
-  { path: '/assistant', name: 'Assistant', component: { template: '<div>智能助理子应用路由激活时加载</div>' }, meta: { title: '智能助理', requiresAuth: true } },
-  { path: '/user', name: 'User', component: { template: '<div>用户信息子应用路由激活时加载</div>' }, meta: { title: '用户信息', requiresAuth: true } },
-  { path: '/venue', name: 'Venue', component: { template: '<div>体育场地子应用路由激活时加载</div>' }, meta: { title: '体育场地', requiresAuth: true } },
-  { path: '/equipment', name: 'Equipment', component: { template: '<div>体育器材子应用路由激活时加载</div>' }, meta: { title: '体育器材', requiresAuth: true } },
-  { path: '/events', name: 'Events', component: { template: '<div>体育赛事子应用路由激活时加载</div>' }, meta: { title: '体育赛事', requiresAuth: true } },
-  { path: '/finance', name: 'Finance', component: { template: '<div>体育开支子应用路由激活时加载</div>' }, meta: { title: '体育开支', requiresAuth: true } },
-  { path: '/hr', name: 'HR', component: { template: '<div>体育人事子应用路由激活时加载</div>' }, meta: { title: '体育人事', requiresAuth: true } },
+  // --- 其他子应用路由占位符 ---
+  // 实际组件由 Qiankun 加载，这里仅用于路由定义
+  { path: '/posts', name: 'Posts', component: { template: '<div></div>' }, meta: { title: '体育论坛', requiresAuth: true } },
+  { path: '/assistant', name: 'Assistant', component: { template: '<div></div>' }, meta: { title: '智能助理', requiresAuth: true } },
+  { path: '/user', name: 'User', component: { template: '<div></div>' }, meta: { title: '用户信息', requiresAuth: true } },
+  { path: '/venue', name: 'Venue', component: { template: '<div></div>' }, meta: { title: '体育场地', requiresAuth: true } },
+  { path: '/equipment', name: 'Equipment', component: { template: '<div></div>' }, meta: { title: '体育器材', requiresAuth: true } },
+  { path: '/events', name: 'Events', component: { template: '<div></div>' }, meta: { title: '体育赛事', requiresAuth: true } },
+  { path: '/finance', name: 'Finance', component: { template: '<div></div>' }, meta: { title: '体育开支', requiresAuth: true } },
+  { path: '/hr', name: 'HR', component: { template: '<div></div>' }, meta: { title: '体育人事', requiresAuth: true } },
   // --- 通配符路由 ---
-  { path: '*', component: { template: '<div id="subapp-catchall">子应用容器或404</div>' } }
+  // 注意: 考虑是否与 Qiankun 的 activeRule 冲突
+  { path: '*', component: { template: '<div id="subapp-catchall">页面未找到</div>' } }
 ];
 
 // 处理 NavigationDuplicated 错误 (保持不变)
@@ -57,6 +59,7 @@ Router.prototype.push = function push(location, onResolve, onReject) {
   if (onResolve || onReject) return originalPush.call(this, location, onResolve, onReject);
   return originalPush.call(this, location).catch(err => {
     if (err.name !== 'NavigationDuplicated' && !err.message.includes('Redirected when going from')) {
+      console.error('Router push error:', err); // 添加日志方便调试
       throw err;
     }
     // console.warn('Navigation prevented in push:', err.message);
@@ -67,6 +70,7 @@ Router.prototype.replace = function replace(location, onResolve, onReject) {
   if (onResolve || onReject) return originalReplace.call(this, location, onResolve, onReject);
   return originalReplace.call(this, location).catch(err => {
     if (err.name !== 'NavigationDuplicated' && !err.message.includes('Redirected when going from')) {
+      console.error('Router replace error:', err); // 添加日志方便调试
       throw err;
     }
     // console.warn('Navigation prevented in replace:', err.message);
@@ -77,124 +81,127 @@ Router.prototype.replace = function replace(location, onResolve, onReject) {
 // 创建 Router 实例
 const router = new Router({
   mode: 'history',
-  base: '/', // 或者 process.env.BASE_URL
+  base: process.env.BASE_URL || '/', // 使用环境变量或默认为 '/'
   routes,
 });
 
-// --- 全局前置守卫 (核心修改点在这里) ---
+// --- 全局前置守卫 (核心修改：增加循环中断逻辑) ---
+
+// 添加一个标志来检测是否正在由守卫主动重定向到登录页
+let isRedirectingToLogin = false;
+
 router.beforeEach((to, from, next) => {
+  // 检查当前 Token 是否有效 (确保 isTokenValid 是同步且可靠的)
   const loggedIn = isTokenValid();
   console.log(`[Router Guard] Navigating: From ${from?.path || 'N/A'} To ${to.path}. Token Valid: ${loggedIn}`);
-  const whiteList = ['/login', '/register']; // 白名单路由
+  const whiteList = ['/login', '/register']; // 公开访问路由列表
 
-  // 1. 如果要去的是白名单页面
-  if (whiteList.includes(to.path)) {
-    // 1.1 如果已登录，且要去登录页 (包括登录后刷新页面的情况)
-    if (loggedIn && to.path === '/login') {
-      console.log('[Router Guard] Already logged in, accessing /login. Redirecting to /.');
-      // 因为 LoginView 会 reload 页面，刷新后如果 token 有效，这里会捕获到
-      // 并将用户重定向到首页，符合预期
-      next({ path: '/', replace: true });
-      return; // 明确返回
+  // --- 1. 处理目标是登录页的情况 ---
+  if (to.path === '/login') {
+    // 1.1 如果标志为 true，说明是上一次守卫触发的重定向，直接放行以完成跳转
+    if (isRedirectingToLogin) {
+      console.log('[Router Guard] 检测到重入 /login (由守卫重定向引起)，放行本次 next() 调用');
+      isRedirectingToLogin = false; // 重置标志，表示重定向过程完成
+      next(); // 放行
+      return; // 结束守卫
+    }
+    // 1.2 如果用户已登录，却要访问登录页，重定向到首页
+    if (loggedIn) {
+      console.log('[Router Guard] 用户已登录，但尝试访问 /login，重定向到 /');
+      next({ path: '/', replace: true }); // 使用 replace 避免历史记录问题
+      return; // 结束守卫
     } else {
-      // 1.2 如果未登录，或已登录但去的是注册页，直接放行
-      console.log('[Router Guard] Accessing whitelist page or not logged in accessing /login/register. Allowing.');
-      next();
-      return; // 明确返回
+      // 1.3 如果用户未登录，且不是守卫重定向过来的 (例如直接访问或点击链接)，允许访问登录页
+      console.log('[Router Guard] 用户未登录，访问 /login，允许');
+      next(); // 放行
+      return; // 结束守卫
     }
   }
-  // 2. 如果要去的不是白名单页面 (即受保护页面)
-  else {
-    // 2.1 如果已登录，放行
+
+  // --- 2. 处理目标是注册页的情况 ---
+  if (to.path === '/register') {
+    // 通常允许直接访问注册页，无论登录状态如何
+    console.log('[Router Guard] 访问 /register，允许');
+    next(); // 放行
+    return; // 结束守卫
+  }
+
+  // --- 3. 处理目标是需要认证的页面 ---
+  // 使用 to.matched 检查路由记录链中是否有 meta.requiresAuth
+  if (to.matched.some(record => record.meta.requiresAuth)) {
     if (loggedIn) {
-      console.log('[Router Guard] Logged in, accessing protected page. Allowing.');
-      // --- 设置页面标题 (保持不变) ---
-      let title = '体育管理系统';
-      const microAppPrefixes = ['/posts', '/assistant', '/user', '/venue', '/equipment', '/events', '/finance', '/hr'];
-      const isMicroAppRoute = microAppPrefixes.some(prefix =>
-          to.path === prefix || to.path.startsWith(`${prefix}/`)
-      );
-      if (to.meta && to.meta.title) {
-        title = `${to.meta.title} - ${title}`;
-      } else if (isMicroAppRoute) {
-        const appName = to.path.split('/')[1];
-        switch(appName) {
-          case 'posts': title = `体育论坛 - ${title}`; break;
-          case 'assistant': title = `智能助理 - ${title}`; break;
-          case 'user': title = `用户信息 - ${title}`; break;
-          case 'venue': title = `体育场地 - ${title}`; break;
-          case 'equipment': title = `体育器材 - ${title}`; break;
-          case 'events': title = `体育赛事 - ${title}`; break;
-          case 'finance': title = `体育开支 - ${title}`; break;
-          case 'hr': title = `体育人事 - ${title}`; break;
-        }
-      }
-      document.title = title;
-      // --- 放行 ---
-      next();
-      return; // 明确返回
-    }
-    // 2.2 如果未登录 (Token 过期或首次访问)，**先提示，再重定向到干净的 /login**
-    else {
-      console.log('[Router Guard] Not logged in, accessing protected page. Showing message and redirecting to /login.');
+      // 3.1 用户已登录，允许访问
+      console.log(`[Router Guard] 用户已登录，允许访问受保护页面 ${to.path}`);
+      // 设置页面标题
+      document.title = to.meta?.title ? `${to.meta.title} - 体育管理系统` : '体育管理系统';
+      next(); // 放行
+      return; // 结束守卫
+    } else {
+      // 3.2 用户未登录，需要重定向到登录页
+      console.log(`[Router Guard] 用户未登录，尝试访问受保护页面 ${to.path}，重定向到 /login`);
 
-      // --- 显示提示信息 ---
-      // 添加检查避免重复显示
-      if (!document.querySelector('.el-message')) {
+      // 显示提示信息 (如果需要且没有重复显示)
+      if (!document.querySelector('.el-message.el-message--warning')) { // 更精确地检查特定类型的消息
         try {
-          Message.warning({
-            message: '登录状态已过期或无效，请重新登录',
-            duration: 3000, // 消息显示 3 秒
-            onClose: () => { console.log('[Router Guard] Expired/invalid token message closed.'); } // 可选调试
-          });
-          console.log('[Router Guard] Message.warning call potentially succeeded.');
-        } catch (msgError) {
-          console.error('[Router Guard] Error calling Message.warning:', msgError);
-        }
-      } else {
-        console.log('[Router Guard] Message already visible, skipping new one.');
-      }
+          Message.warning({ message: '登录状态已过期或无效，请重新登录', duration: 3000 });
+          console.log('[Router Guard] 显示了 Token 无效提示');
+        } catch (msgError) { console.error('[Router Guard] 调用 Message.warning 时出错:', msgError); }
+      } else { console.log('[Router Guard] Token 无效提示已显示，跳过'); }
 
-      // 可选：在这里清除无效 token (如果 isTokenValid 内部没做)
-      // localStorage.removeItem('auth_token');
+      // --- 关键步骤：准备重定向 ---
+      console.log('[Router Guard] 设置 isRedirectingToLogin = true');
+      isRedirectingToLogin = true; // 设置标志，表明是守卫发起的重定向
 
-      // --- !!! 核心修改：重定向到 /login，不带 redirect query !!! ---
-      // 这将阻止无限循环和 URL 中嵌套 redirect 参数的问题
+      console.log('[Router Guard] 执行 next({ path: \'/login\', replace: true })');
       next({
         path: '/login',
-        replace: true // 使用 replace 避免用户可以通过浏览器后退回到需要登录的页面
-        // REMOVED: query: { redirect: to.fullPath } // 不再传递原始路径作为查询参数
+        replace: true // 使用 replace 模式
       });
-      return; // 明确返回
+
+      // --- 关键步骤：立即返回 ---
+      console.log('[Router Guard] 重定向已发起，立即返回');
+      return; // 确保 next() 调用后守卫逻辑终止，防止意外执行后续代码或被其他逻辑干扰
     }
   }
+
+  // --- 4. 其他情况 (访问不需要认证的非白名单页面，例如通配符路由) ---
+  console.log(`[Router Guard] 访问无需认证页面 ${to.path}，允许`);
+  next(); // 默认放行
 });
 
 // --- 全局导航错误处理 (保持不变) ---
 router.onError(error => {
-  console.log('!!!!!! router.onError 处理器被触发了 !!!!!! Error Name:', error.name, 'Message:', error.message);
-  console.error('[Router Error Handler] Caught Raw Error:', error);
+  console.log('!!!!!! router.onError 处理器被触发了 !!!!!!');
+  console.error('[Router Error Handler] 捕获到原始错误:', error);
+  console.error(`[Router Error Handler] 错误名称: ${error.name}, 错误消息: ${error.message}`);
+  if (error.stack) {
+    console.error('[Router Error Handler] 错误堆栈:', error.stack);
+  }
 
   const isRedirectError = error.message && error.message.includes('Redirected when going from');
   const isNavDuplicated = error.name === 'NavigationDuplicated';
+  const isDOMSecurityError = error.name === 'DOMException' && error.message.includes('The operation is insecure');
 
   if (isRedirectError) {
-    console.warn('[Router Error Handler] Caught Redirected error. User message was handled in beforeEach. Error:', error.message);
+    console.warn('[Router Error Handler] 捕获到重定向错误 (通常预期内，由 beforeEach 处理):', error.message);
   }
   else if (isNavDuplicated) {
-    console.warn('[Router Error Handler] Navigation duplicated. Ignoring.');
+    console.warn('[Router Error Handler] 导航重复，忽略');
   }
-  else {
-    console.error('Unhandled Vue Router Error:', error);
+  else if (isDOMSecurityError) {
+    console.error('[Router Error Handler] 捕获到 DOM 安全异常，可能与微前端或浏览器状态有关');
     Vue.nextTick(() => {
       try {
-        Message.error({
-          message: '页面跳转时发生未知错误，请稍后重试',
-          duration: 3000
-        });
-      } catch (msgError) {
-        console.error('[Router Error Handler] Error calling Message.error:', msgError);
-      }
+        Message.error({ message: '页面状态异常，请尝试刷新页面', duration: 5000 });
+      } catch (msgError) { console.error('[Router Error Handler] 调用 Message.error 时出错 (DOM 安全异常):', msgError); }
+    });
+  }
+  else {
+    console.error('未处理的 Vue Router 错误:', error);
+    Vue.nextTick(() => {
+      try {
+        Message.error({ message: '页面跳转时发生未知错误，请稍后重试', duration: 5000 });
+      } catch (msgError) { console.error('[Router Error Handler] 调用 Message.error 时出错 (未知错误):', msgError); }
     });
   }
 });
